@@ -44,7 +44,7 @@ class EncoderDecoderConvLSTM(nn.Module):
     def autoencoder(self, x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4):
         outputs = []
 
-        # 1. Process the Past (Encoder)
+        # Process the Past (Encoder)
         for t in range(seq_len):
             h_t, c_t = self.encoder_1_convlstm(input_tensor=x[:, t, :, :],
                                                cur_state=[h_t, c_t])
@@ -53,7 +53,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         
         encoder_vector = h_t2
 
-        # 2. Predict the Future (Decoder)
+        # Predict the Future (Decoder)
         for t in range(future_step):
             h_t3, c_t3 = self.decoder_1_convlstm(input_tensor=encoder_vector,
                                                  cur_state=[h_t3, c_t3])
@@ -63,7 +63,7 @@ class EncoderDecoderConvLSTM(nn.Module):
             encoder_vector = h_t4 # Feed output back as input for next step
             outputs += [h_t4]     # Save prediction
 
-        # 3. Format Output
+        # Format Output
         outputs = torch.stack(outputs, 1)
         outputs = outputs.permute(0, 2, 1, 3, 4)
         outputs = self.decoder_CNN(outputs)

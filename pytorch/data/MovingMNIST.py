@@ -27,9 +27,7 @@ class MovingMNIST(data.Dataset):
         # Swap axes to match (Sequence Length, Batch, Height, Width)
         self.data = self.data.transpose(1, 0, 2, 3)
 
-    def __getitem__(self, index):
-        # This function fetches one video sequence
-        
+    def __getitem__(self, index):        
         # Get the video data
         seq = self.data[index, :self.seq_len]
         
