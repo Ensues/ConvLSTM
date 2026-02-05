@@ -74,18 +74,17 @@ class MovingMNISTLightning(pl.LightningModule):
     def train_dataloader(self):
         # Loads the training data
         train_data = MovingMNIST(root='./data_download', train=True, seq_len=20)
-        return DataLoader(train_data, batch_size=opt.batch_size, shuffle=True, num_workers=2)
+        return DataLoader(train_data, batch_size=opt.batch_size, shuffle=True, num_workers=0)
 
 if __name__ == '__main__':
-    # 1. Initialize the Model
+    # Initialize the Model
     conv_lstm_model = EncoderDecoderConvLSTM(nf=opt.n_hidden_dim, in_chan=1)
     
-    # 2. Wrap it in Lightning
+    # Wrap it in Lightning
     model = MovingMNISTLightning(model=conv_lstm_model)
 
-    # 3. Setup Trainer (Manages the GPU and loop)
-    # Note: 'accelerator="auto"' will automatically pick GPU if available
+    # Setup Trainer (Manages the GPU and loop)
     trainer = Trainer(max_epochs=opt.epochs, accelerator="auto")
 
-    # 4. Start Training
+    # Start Training
     trainer.fit(model)
