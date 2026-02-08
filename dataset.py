@@ -47,7 +47,7 @@ class MVOVideoDataset(Dataset):
         csv_name = video_name.replace('.mp4', '.csv')
         csv_path = os.path.join(self.label_folder, csv_name)
         
-        # Read the Label ID
+        # Read the label
         # For a 3s clip, the label is the "majority" action or the final state
         df = pd.read_csv(csv_path)
         label = df['label'].iloc[-1] # Taking the final decision of the MVO

@@ -4,8 +4,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from tqdm import tqdm
-import os
-
 from models.conv_lstm_classifier import ConvLSTMModel
 from dataset import MVOVideoDataset
 from utils import *
