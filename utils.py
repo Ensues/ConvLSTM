@@ -1,5 +1,3 @@
-import torch
-
 # Hyperparanms
 HEIGHT = 128
 WIDTH = 128
