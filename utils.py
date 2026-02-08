@@ -15,5 +15,5 @@ def get_label_id(label_name):
     return mapping.get(label_name.lower(), 0)
 
 # Paths based on your setup
-VIDEO_DIR = 'data_preparation/video_preparation/cleaned_videos/' # Update to your actual path
+VIDEO_DIR = 'data_preparation/videos/'
 LABEL_DIR = 'data_preparation/labels/'
