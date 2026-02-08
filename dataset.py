@@ -51,5 +51,12 @@ class MVOVideoDataset(Dataset):
         # For a 3s clip, the label is the "majority" action or the final state
         df = pd.read_csv(csv_path)
         label = df['label'].iloc[-1] # Taking the final decision of the MVO
+        
+        """
+        Hannah check this plz
+        
+        last_second = df['label'].tail(10)
+        label = last_second.mode()[0]
+        """
 
         return video_tensor, torch.tensor(label).long()
