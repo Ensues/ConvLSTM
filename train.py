@@ -17,7 +17,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model Parameters
 PARAMS = {
-    'input_dim': 3,
+    'input_dim': 4,
     'hidden_dim': [64, 32], 
     'kernel_size': (3, 3),
     'num_layers': 2,
@@ -70,6 +70,13 @@ def main():
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
     
+    # Calculate class instances for class weights
+    label_counts, total_count = train_dataset.class_counter()
+    # Add 1 to avoid division by zero
+    front_weight = total_count / (label_counts[0] + 1) 
+    left_weight = total_count / (label_counts[1] + 1)
+    right_weight = total_count / (label_counts[2] + 1)
+
     train_loader = DataLoader(train_dataset, batch_size=BATCH, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=BATCH, shuffle=False, num_workers=0)
 
@@ -84,7 +91,10 @@ def main():
         num_classes=PARAMS['num_classes']
     ).to(DEVICE)
 
-    criterion = nn.CrossEntropyLoss()
+    # CrossEntropyLoss is used to handle class imbalance
+    class_weights = torch.FloatTensor([front_weight,left_weight,right_weight]).to(DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # Training Loop

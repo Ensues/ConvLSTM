@@ -40,7 +40,7 @@ class MVOVideoDataset(Dataset):
             frames.append(frame)
         cap.release()
 
-        # Convert list to a 5D tensor [1, 30, 3, 128, 128]
+        # Convert list to a 5D tensor [1, 30, 4, 128, 128]
         video_tensor = torch.stack(frames, dim=0)
 
         #  Get the Label from the matching CSV file
@@ -50,9 +50,15 @@ class MVOVideoDataset(Dataset):
         # Read the label
         # For a 3s clip, the label is the maximum turn label present in the last second (24 frames in CSV)
         df = pd.read_csv(csv_path)
+        label = self.labeler(df)
+
+        return video_tensor, torch.tensor(label).long()
+    
+    def labeler(self, df):
         df_lbl_count = []
+
         for i in range(0, 3):
-            df_lbl_count = df['label'].tail(24).count(i)
+            df_lbl_count.append(df['label'].tail(24).value_counts(i))
 
         if df_lbl_count[0] == 24:
             label = 0 # Front
@@ -62,13 +68,17 @@ class MVOVideoDataset(Dataset):
             label = 2 # Right
         else: # If turn counts are equal
             label = df['label'].tail(12).mode()[0]
-            
-        """
-        Hannah check this plz
-        
-        label = df['label'].iloc[-1] # Taking the final decision of the MVO
-        last_second = df['label'].tail(10)
-        label = last_second.mode()[0]
-        """
 
-        return video_tensor, torch.tensor(label).long()
+        return label
+
+    def class_counter(self):
+        # Count instances of each class and sum of all class instances
+        label_counts = {0: 0, 1: 0, 2: 0}
+        csv_files = [os.path.join(self.label_folder, f.replace('.mp4', '.csv')) for f in self.video_files]
+
+        for csv_file in csv_files:
+            df = pd.read_csv(csv_file)
+            label = self.labeler(df)
+            label_counts[label] += 1
+        
+        return label_counts, sum(label_counts.values())
