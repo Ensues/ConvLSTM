@@ -77,6 +77,10 @@ def main():
     left_weight = total_count / (label_counts[1] + 1)
     right_weight = total_count / (label_counts[2] + 1)
 
+    print(f"Front class instances: {label_counts[0]} -> Front weight: {front_weight}")
+    print(f"Left class instances: {label_counts[1]} -> Left weight: {left_weight}")
+    print(f"Right class instances: {label_counts[2]} -> Right weight: {right_weight}")
+
     train_loader = DataLoader(train_dataset, batch_size=BATCH, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=BATCH, shuffle=False, num_workers=0)
 

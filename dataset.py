@@ -3,6 +3,9 @@ import cv2
 import pandas as pd
 import os
 from torch.utils.data import Dataset
+import random
+import numpy as np
+import scipy.stats as ss
 
 class MVOVideoDataset(Dataset):
     """
@@ -15,6 +18,7 @@ class MVOVideoDataset(Dataset):
         self.transforms = transforms
         # List all the 3-second videos
         self.video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
+        self.csv_files = [f.replace('.mp4', '.csv') for f in self.video_files]
 
     def __len__(self):
         return len(self.video_files)
@@ -52,13 +56,15 @@ class MVOVideoDataset(Dataset):
         df = pd.read_csv(csv_path)
         label = self.labeler(df)
 
+        intent = self.get_intent(self.get_intent_position(idx), df)
+
         return video_tensor, torch.tensor(label).long()
     
     def labeler(self, df):
         df_lbl_count = []
 
         for i in range(0, 3):
-            df_lbl_count.append(df['label'].tail(24).value_counts(i))
+            df_lbl_count.append(df['label_id_corrected'].tail(24).value_counts(i))
 
         if df_lbl_count[0] == 24:
             label = 0 # Front
@@ -67,17 +73,57 @@ class MVOVideoDataset(Dataset):
         elif df_lbl_count[1] < df_lbl_count[2]:
             label = 2 # Right
         else: # If turn counts are equal
-            label = df['label'].tail(12).mode()[0]
+            label = df['label_id_corrected'].tail(12).mode()[0]
 
         return label
+
+    def get_intent_position(self, idx):
+        csv_file = self.csv_files[idx]
+        csv_path = os.path.join(self.label_folder, csv_file)
+        
+        # 50% of the dataset have intent
+        if random.random() < 0.5:
+            df = pd.read_csv(csv_path)
+            # Read the labels of the first 2 seconds (videos - 10 fps)
+            start_frame = 0
+            end_frame = 20
+            median = (start_frame + end_frame)/2
+            range_zero = np.arange(-median, median)
+
+            # Obtain the probability of selecting a timestamp using the adjacent 0.5 areas
+            smaller_range = range_zero - 0.5 
+            higher_range = range_zero + 0.5    
+
+            # Probability is the difference of the probability of higher range and lower range
+            probability = ss.norm.cdf(higher_range) - ss.norm.cdf(smaller_range)
+            
+            # Normalize the probabilities
+            # Each probability in probability range is divided by the sum of the probabilities in probability range
+            probability /= probability.sum()
+
+            # Select a timestamp based on the probabilities
+            range = np.arange(start_frame, end_frame)
+            intent_position = np.random.choice(range, p=probability)
+        else:
+            intent_position = -1
+        
+        return intent_position 
+
+    def get_intent(self, intent_position, df):
+        # Check if the data has no intent
+        if intent_position != -1:
+            intent = self.labeler(df)
+        else:
+            intent = -1
+        return intent
 
     def class_counter(self):
         # Count instances of each class and sum of all class instances
         label_counts = {0: 0, 1: 0, 2: 0}
-        csv_files = [os.path.join(self.label_folder, f.replace('.mp4', '.csv')) for f in self.video_files]
-
-        for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
+        
+        for csv_file in self.csv_files:
+            csv_path = os.path.join(self.label_folder, csv_file)
+            df = pd.read_csv(csv_path)
             label = self.labeler(df)
             label_counts[label] += 1
         
