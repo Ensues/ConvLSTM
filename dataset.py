@@ -7,6 +7,8 @@ import random
 import numpy as np
 import scipy.stats as ss
 
+from utils import *
+
 class MVOVideoDataset(Dataset):
     """
     This takes a 3-second video and turns it into 
@@ -20,7 +22,7 @@ class MVOVideoDataset(Dataset):
         self.video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
         self.csv_files = [f.replace('.mp4', '.csv') for f in self.video_files]
         self.split_type = ''
-        self.positions = {} # If split_type == 'train', this would not be filled.
+        self.positions = [] # If split_type == 'train', this would not be filled.
 
     def __len__(self):
         return len(self.video_files)
@@ -39,10 +41,8 @@ class MVOVideoDataset(Dataset):
         label = self.labeler(df)
 
         if self.split_type == 'TRAIN':
-            intent_position = self.get_intent_position(idx)
+            intent_position = self.get_intent_position()
         else:
-            if not idx in self.positions.keys():
-                self.positions[idx] = self.get_intent_position(idx)
             intent_position = self.positions[idx]
 
         intent = self.get_intent(intent_position, df)
@@ -96,7 +96,7 @@ class MVOVideoDataset(Dataset):
 
         return label
 
-    def get_intent_position(self, idx):
+    def get_intent_position(self):
         # 50% of the dataset have intent
         if random.random() < 0.5:
             # Read the labels of the first 2 seconds (videos - 10 fps)
@@ -144,6 +144,24 @@ class MVOVideoDataset(Dataset):
         
         return label_counts, sum(label_counts.values())
     
-    def set_split_type(self, type):
+    def set_split_type(self, type, len_dataset):
         self.split_type = type
+
+        if self.split_type == 'VALIDATION':
+            if VAL_POSITIONS == '':
+                for _ in range(len_dataset):
+                    self.positions.append(self.get_intent_position())
+                np.save('val_intent_positions.npy', np.array(self.positions))
+                VAL_POSITIONS = 'val_intent_positions.npy'
+            else:
+                self.positions = list(np.load(VAL_POSITIONS))
+        elif self.split_type == 'TEST':
+            if TEST_POSITIONS == '':
+                for _ in range(len_dataset):
+                    self.positions.append(self.get_intent_position())
+                np.save('test_intent_positions.npy', np.array(self.positions))
+                TEST_POSITIONS = 'test_intent_positions.npy'
+            else:
+                self.positions = list(np.load(TEST_POSITIONS))
+
         return ''

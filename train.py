@@ -95,8 +95,8 @@ def main():
     
     print(f"Data Split -> Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test (Unused): {test_size}")
     
-    train_dataset.set_split_type('TRAIN')
-    val_dataset.set_split_type('VALIDATION')
+    train_dataset.set_split_type('TRAIN', len(train_dataset))
+    val_dataset.set_split_type('VALIDATION', len(val_dataset))
 
     # Calculate class instances for class weights
     label_counts, total_count = train_dataset.class_counter()

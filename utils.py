@@ -15,3 +15,7 @@ def get_label_id(label_name):
 # Paths based on your setup
 VIDEO_DIR = r''
 LABEL_DIR = r''
+
+# Intent files
+VAL_POSITIONS = ''
+TEST_POSITIONS = ''
