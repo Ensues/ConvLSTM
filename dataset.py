@@ -56,7 +56,7 @@ class MVOVideoDataset(Dataset):
         df = pd.read_csv(csv_path)
         label = self.labeler(df)
 
-        intent = self.get_intent(self.get_intent_position(idx), df)
+        # intent = self.get_intent(self.get_intent_position(idx), df)
 
         return video_tensor, torch.tensor(label).long()
     
