@@ -19,6 +19,8 @@ class MVOVideoDataset(Dataset):
         # List all the 3-second videos
         self.video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
         self.csv_files = [f.replace('.mp4', '.csv') for f in self.video_files]
+        self.split_type = ''
+        self.positions = {} # If split_type == 'train', this would not be filled.
 
     def __len__(self):
         return len(self.video_files)
@@ -27,10 +29,28 @@ class MVOVideoDataset(Dataset):
         video_name = self.video_files[idx]
         video_path = os.path.join(self.video_folder, video_name)
         
+        #  Get the Label from the matching CSV file
+        csv_name = video_name.replace('.mp4', '.csv')
+        csv_path = os.path.join(self.label_folder, csv_name)
+        
+        # Read the label
+        # For a 3s clip, the label is the maximum turn label present in the last second (24 frames in CSV)
+        df = pd.read_csv(csv_path)
+        label = self.labeler(df)
+
+        if self.split_type == 'TRAIN':
+            intent_position = self.get_intent_position(idx)
+        else:
+            if not idx in self.positions.keys():
+                self.positions[idx] = self.get_intent_position(idx)
+            intent_position = self.positions[idx]
+
+        intent = self.get_intent(intent_position, df)
+
         # Load the 30 frames from the 3-second video
         cap = cv2.VideoCapture(video_path)
         frames = []
-        for _ in range(30): # We already know it's exactly 30 frames
+        for i in range(30): # We already know it's exactly 30 frames
             ret, frame = cap.read()
             if not ret:
                 # If a video is shorter than 3s, pad with a black frame
@@ -41,22 +61,21 @@ class MVOVideoDataset(Dataset):
                     from PIL import Image
                     frame = Image.fromarray(frame)
                     frame = self.transforms(frame)
+
+            # If intent exists, add intent in its intent position for 1 second (10 frames)  
+            if intent_position != -1 and intent_position <= i and (intent_position + 10) > i:
+                # Create a tensor for the intent with the same spatial dimensions as the video frames
+                intent_torch = torch.full((1, 128, 128), intent)
+            else:
+                intent_torch = torch.full((1, 128, 128), -1)
+
+            # Append the intent as a channel to the video frame
+            frame = torch.cat((frame, intent_torch), dim=0)
             frames.append(frame)
         cap.release()
 
         # Convert list to a 5D tensor [1, 30, 4, 128, 128]
         video_tensor = torch.stack(frames, dim=0)
-
-        #  Get the Label from the matching CSV file
-        csv_name = video_name.replace('.mp4', '.csv')
-        csv_path = os.path.join(self.label_folder, csv_name)
-        
-        # Read the label
-        # For a 3s clip, the label is the maximum turn label present in the last second (24 frames in CSV)
-        df = pd.read_csv(csv_path)
-        label = self.labeler(df)
-
-        # intent = self.get_intent(self.get_intent_position(idx), df)
 
         return video_tensor, torch.tensor(label).long()
     
@@ -78,12 +97,8 @@ class MVOVideoDataset(Dataset):
         return label
 
     def get_intent_position(self, idx):
-        csv_file = self.csv_files[idx]
-        csv_path = os.path.join(self.label_folder, csv_file)
-        
         # 50% of the dataset have intent
         if random.random() < 0.5:
-            df = pd.read_csv(csv_path)
             # Read the labels of the first 2 seconds (videos - 10 fps)
             start_frame = 0
             end_frame = 20
@@ -128,3 +143,7 @@ class MVOVideoDataset(Dataset):
             label_counts[label] += 1
         
         return label_counts, sum(label_counts.values())
+    
+    def set_split_type(self, type):
+        self.split_type = type
+        return ''
