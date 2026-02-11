@@ -4,6 +4,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from tqdm import tqdm
+import numpy as np
+import random 
+
+# Custom project imports
 from models.conv_lstm_classifier import ConvLSTMModel
 from dataset import MVOVideoDataset
 from utils import *
@@ -14,6 +18,13 @@ NUM_EPOCHS = 20
 LEARNING_RATE = 1e-4
 SAVED_MODEL_PATH = "best_convlstm.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Setting a fixed random seed to ensure that 
+# we get the exact same data split every time we run the script
+SEED = 8
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 # Model Parameters
 PARAMS = {
@@ -65,10 +76,24 @@ def main():
     
     full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=transforms_train)
     
-    # Split 80% Train, 20% Validation
-    train_size = int(0.8 * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    # Train/Val/Test Split
+    total_size = len(full_dataset)
+    train_size = int(0.6 * total_size)                  # 60% for Training
+    val_size = int(0.2 * total_size)                    # 20% for Validation
+    test_size = total_size - train_size - val_size      # Remaining 20% for Testing
+
+    # The generator with our fixed seed so the split is always the same
+    generator = torch.Generator().manual_seed(SEED)
+    
+    # Split the dataset into three parts
+    train_dataset, val_dataset, _ = random_split(
+        full_dataset, 
+        [train_size, val_size, test_size], 
+        generator=generator
+    )
+    # Note: The last part is '_' because we don't touch the test set in train.py
+    
+    print(f"Data Split -> Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test (Unused): {test_size}")
     
     # Calculate class instances for class weights
     label_counts, total_count = train_dataset.class_counter()
