@@ -28,7 +28,7 @@ random.seed(SEED)
 
 # Model Parameters
 PARAMS = {
-    'input_dim': 4,
+    'input_dim': 6,
     'hidden_dim': [64, 32], 
     'kernel_size': (3, 3),
     'num_layers': 2,

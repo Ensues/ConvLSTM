@@ -62,12 +62,13 @@ class MVOVideoDataset(Dataset):
                     frame = Image.fromarray(frame)
                     frame = self.transforms(frame)
 
+            # Create a tensor for the intent with the same spatial dimensions as the video frames
+            # Used for no intent
+            intent_torch = torch.zeros((3, 128, 128))
             # If intent exists, add intent in its intent position for 1 second (10 frames)  
             if intent_position != -1 and intent_position <= i and (intent_position + 10) > i:
-                # Create a tensor for the intent with the same spatial dimensions as the video frames
-                intent_torch = torch.full((1, 128, 128), intent)
-            else:
-                intent_torch = torch.full((1, 128, 128), -1)
+                # Fill the specified intent channel with 1
+                intent_torch[intent, :, :] = 1
 
             # Append the intent as a channel to the video frame
             frame = torch.cat((frame, intent_torch), dim=0)
@@ -99,7 +100,7 @@ class MVOVideoDataset(Dataset):
     def get_intent_position(self):
         # 50% of the dataset have intent
         if random.random() < 0.5:
-            # Read the labels of the first 2 seconds (videos - 10 fps)
+            # The time positions of the first 2 seconds (videos - 10 fps)
             start_frame = 0
             end_frame = 20
             median = (start_frame + end_frame)/2
