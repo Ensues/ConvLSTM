@@ -67,7 +67,7 @@ class MVOVideoDataset(Dataset):
             intent_torch = torch.zeros((3, 128, 128))
             # If intent exists, add intent in its intent position for 1 second (10 frames)  
             if intent_position != -1 and intent_position <= i and (intent_position + 10) > i:
-                # Fill the specified intent channel with 1
+                # Convert intent to one-hot vector by filling the specified channel with 1
                 intent_torch[intent, :, :] = 1
 
             # Append the intent as a channel to the video frame
@@ -75,7 +75,7 @@ class MVOVideoDataset(Dataset):
             frames.append(frame)
         cap.release()
 
-        # Convert list to a 5D tensor [1, 30, 4, 128, 128]
+        # Convert list to a 5D tensor [1, 30, 6, 128, 128]
         video_tensor = torch.stack(frames, dim=0)
 
         return video_tensor, torch.tensor(label).long()
@@ -99,7 +99,7 @@ class MVOVideoDataset(Dataset):
 
     def get_intent_position(self):
         # 50% of the dataset have intent
-        if random.random() < 0.5:
+        if random.random() < 0.6:
             # The time positions of the first 2 seconds (videos - 10 fps)
             start_frame = 0
             end_frame = 20
