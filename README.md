@@ -258,4 +258,8 @@ Model file not found at best_convlstm.pth
 
 ---
 
+<<<<<<< HEAD
 **Note**: This is a research prototype. Real-world deployment requires extensive safety validation and testing.
+=======
+**Note**: This is a research prototype. Real-world deployment requires extensive safety validation and testing.
+>>>>>>> bb02565b147bd06f3aea20728c99bc8836ec9968
