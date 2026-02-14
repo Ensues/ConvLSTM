@@ -55,6 +55,8 @@ class Tester:
         # The main evaluation loop. 
         # Processes data one-by-one to measure real-world performance
         print("Preparing Test Data...")
+
+        """
         full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=self.transforms)
         
         # Re-creating the 60/20/20 split
@@ -73,7 +75,13 @@ class Tester:
             generator=generator
         )
         # Note that the first two are "_" again because wwe do not need them
-
+        """
+        test_dir = os.path.join("output", "test")
+        test_dir_vid = os.path.join(test_dir, "videos")
+        test_lbl_vid = os.path.join(test_dir, "labels")
+        test_dataset = MVOVideoDataset(test_dir_vid, test_lbl_vid, transforms=self.transforms)
+        
+        test_dataset.set_split_type('TEST', len(test_dataset))
         test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0) 
         
         print(f"Evaluating {len(test_dataset)} videos and measuring latency...")

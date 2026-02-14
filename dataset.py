@@ -146,6 +146,8 @@ class MVOVideoDataset(Dataset):
         return label_counts, sum(label_counts.values())
     
     def set_split_type(self, type, len_dataset):
+        global VAL_POSITIONS
+        global TEST_POSITIONS
         self.split_type = type
 
         if self.split_type == 'VALIDATION':

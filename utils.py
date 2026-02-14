@@ -16,6 +16,10 @@ def get_label_id(label_name):
 VIDEO_DIR = r''
 LABEL_DIR = r''
 
+# Contains both and only video and label directories
+# Folder names are strictly "videos" and "labels"
+DATA_DIR = r'D:\Thesis 2\Thesis 2\AIGD\split folder' 
+
 # Intent files
 VAL_POSITIONS = ''
 TEST_POSITIONS = ''

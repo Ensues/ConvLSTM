@@ -6,6 +6,8 @@ from torchvision import transforms
 from tqdm import tqdm
 import numpy as np
 import random 
+import splitfolders
+import os
 
 # Custom project imports
 from models.conv_lstm_classifier import ConvLSTMModel
@@ -73,7 +75,8 @@ def main():
         transforms.ToTensor(),
         transforms.Resize((HEIGHT, WIDTH))
     ])
-    
+
+    """
     full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=transforms_train)
     
     # Train/Val/Test Split
@@ -92,14 +95,35 @@ def main():
         generator=generator
     )
     # Note: The last part is '_' because we don't touch the test set in train.py
-    
-    print(f"Data Split -> Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test (Unused): {test_size}")
+    """
+
+    # Split the files in the directory into three directories: training (80%), validation (20%), and testing (20%)
+    splitfolders.ratio(DATA_DIR, output="output", seed=8, ratio=(.6, .2, .2), group="sibling",move=False, shuffle=True) 
+
+    train_dir = os.path.join("output", "train")
+    val_dir = os.path.join("output", "val")
+    test_dir = os.path.join("output", "test")
+
+    train_dir_vid = os.path.join(train_dir, "videos")
+    val_dir_vid = os.path.join(val_dir, "videos")
+    test_dir_vid = os.path.join(test_dir, "videos")
+
+    train_lbl_vid = os.path.join(train_dir, "labels")
+    val_lbl_vid = os.path.join(val_dir, "labels")
+    test_lbl_vid = os.path.join(test_dir, "labels")
+
+    train_dataset = MVOVideoDataset(train_dir_vid, train_lbl_vid, transforms=transforms_train)
+    val_dataset = MVOVideoDataset(val_dir_vid, val_lbl_vid, transforms=transforms_train)
+    test_dataset = MVOVideoDataset(test_dir_vid, test_lbl_vid, transforms=transforms_train)
+
+    print(f"Data Split -> Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test (Unused): {len(test_dataset)}")
     
     train_dataset.set_split_type('TRAIN', len(train_dataset))
     val_dataset.set_split_type('VALIDATION', len(val_dataset))
 
     # Calculate class instances for class weights
     label_counts, total_count = train_dataset.class_counter()
+    
     # Add 1 to avoid division by zero
     front_weight = total_count / (label_counts[0] + 1) 
     left_weight = total_count / (label_counts[1] + 1)
