@@ -1,0 +1,26 @@
+To do list:
+
+Quick Wins (Easy + High Impact):
+- Gradient clipping: Prevent exploding gradients
+- Early stopping: Stop training when validation stops improving
+- Dropout layers: Add dropout in the linear layer to prevent overfitting
+
+Medium Effort, High Reward:
+- Mixed precision training: Use torch.cuda.amp for faster training
+- Tensorboard logging: Track loss curves, accuracy, learning rate
+- Batch normalization: Add after ConvLSTM layers for training stability
+- Validation metrics per class: Track precision/recall per class during training
+
+Big Projects (High Impact but Time-Intensive):
+- Video preprocessing: Pre-extract and cache frames to disk
+- TorchScript compilation: torch.jit.script() for faster inference
+- ONNX export: Run on optimized runtime
+
+Nice-to-Have:
+- Resume training: Save/load optimizer state and epoch number
+- Checkpointing: Save model every N epochs, not just best
+- Track inference time during validation
+- Gradient accumulation: Simulate larger batches with less memory
+- Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau, CosineAnnealing)
+- Clear cache: torch.cuda.empty_cache() between epochs
+- Delete intermediate tensors: Use del and clear unnecessary variables
