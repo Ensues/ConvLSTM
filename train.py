@@ -8,6 +8,7 @@ import numpy as np
 import random 
 import splitfolders
 import os
+import time
 
 # Custom project imports
 from models.conv_lstm_classifier import ConvLSTMModel
@@ -179,18 +180,40 @@ def main():
         model.eval()
         val_correct = 0
         val_total = 0
+        val_latencies = []
+        
         with torch.no_grad():
-            for x, y in val_loader:
+            for batch_idx, (x, y) in enumerate(val_loader):
                 x = x.float().to(DEVICE)
                 y = y.to(DEVICE)
+                
+                # Measure inference time
+                if DEVICE.type == 'cuda':
+                    torch.cuda.synchronize()
+                
+                start_time = time.perf_counter()
                 scores = model(x)
+                
+                if DEVICE.type == 'cuda':
+                    torch.cuda.synchronize()
+                
+                end_time = time.perf_counter()
+                
+                # Skip first batch for warm-up
+                if batch_idx >= 1:
+                    val_latencies.append(end_time - start_time)
+                
                 _, preds = scores.max(1)
                 val_correct += (preds == y).sum().item()
                 val_total += y.size(0)
         
         val_acc = 100 * val_correct / val_total
+        avg_val_latency_ms = (np.mean(val_latencies) * 1000) if len(val_latencies) > 0 else 0
+        val_throughput = (1 / np.mean(val_latencies)) if len(val_latencies) > 0 else 0
+        
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
         print(f"Avg Gradient Norm: {avg_grad_norm:.4f} (clipped at 1.0)")
+        print(f"Val Inference: {avg_val_latency_ms:.2f} ms/batch | {val_throughput:.2f} batches/sec")
 
         # Save Best Model & Early Stopping Check
         if val_acc > best_acc + MIN_DELTA:

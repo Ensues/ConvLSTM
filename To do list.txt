@@ -14,7 +14,6 @@ Big Projects (High Impact but Time-Intensive):
 Nice-to-Have:
 - Resume training: Save/load optimizer state and epoch number
 - Checkpointing: Save model every N epochs, not just best
-- Track inference time during validation
 - Gradient accumulation: Simulate larger batches with less memory
 - Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau, CosineAnnealing)
 - Clear cache: torch.cuda.empty_cache() between epochs
@@ -24,3 +23,4 @@ Eric Done:
 - Gradient clipping: Prevent exploding gradients
 - Early stopping: Stop training when validation stops improving
 - Dropout layers: Add dropout in the linear layer to prevent overfitting
+- Track inference time during validation
