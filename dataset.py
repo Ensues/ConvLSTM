@@ -77,6 +77,9 @@ class MVOVideoDataset(Dataset):
 
         # Convert list to a 5D tensor [1, 30, 6, 128, 128]
         video_tensor = torch.stack(frames, dim=0)
+        
+        # Memory cleanup: Delete intermediate list
+        del frames, intent_torch
 
         return video_tensor, torch.tensor(label).long()
     

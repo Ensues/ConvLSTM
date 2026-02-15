@@ -9,6 +9,7 @@ import random
 import splitfolders
 import os
 import time
+import gc
 
 # Custom project imports
 from models.conv_lstm_classifier import ConvLSTMModel
@@ -77,6 +78,14 @@ def train_one_epoch(model, loader, criterion, optimizer, max_grad_norm=1.0):
         total += targets.size(0)
         
         loop.set_description(f"Loss: {loss.item():.4f} | GradNorm: {grad_norm.item():.3f}")
+        
+        # Memory cleanup: Delete intermediate tensors
+        del data, targets, scores, loss, predictions
+    
+    # Clear GPU cache after epoch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 
     avg_grad_norm = total_grad_norm / len(loader)
     return running_loss / len(loader), 100 * correct / total, avg_grad_norm
@@ -164,6 +173,15 @@ def main():
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    
+    # Learning Rate Scheduler: Reduces LR when validation accuracy plateaus
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='max',           # Maximize validation accuracy
+        factor=0.5,           # Reduce LR by half
+        patience=3,           # Wait 3 epochs before reducing
+        min_lr=1e-7           # Don't go below this LR
+    )
 
     # Training Loop with Early Stopping
     best_acc = 0
@@ -206,6 +224,14 @@ def main():
                 _, preds = scores.max(1)
                 val_correct += (preds == y).sum().item()
                 val_total += y.size(0)
+                
+                # Memory cleanup: Delete intermediate tensors
+                del x, y, scores, preds
+        
+        # Clear GPU cache after validation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
         
         val_acc = 100 * val_correct / val_total
         avg_val_latency_ms = (np.mean(val_latencies) * 1000) if len(val_latencies) > 0 else 0
@@ -214,6 +240,10 @@ def main():
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
         print(f"Avg Gradient Norm: {avg_grad_norm:.4f} (clipped at 1.0)")
         print(f"Val Inference: {avg_val_latency_ms:.2f} ms/batch | {val_throughput:.2f} batches/sec")
+        print(f"Current LR: {optimizer.param_groups[0]['lr']:.2e}")
+        
+        # Update learning rate based on validation accuracy
+        scheduler.step(val_acc)
 
         # Save Best Model & Early Stopping Check
         if val_acc > best_acc + MIN_DELTA:

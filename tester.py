@@ -6,6 +6,7 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import time
+import gc
 from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report
 import os
 import random 
@@ -124,6 +125,15 @@ class Tester:
                 
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
+                
+                # Memory cleanup: Delete intermediate tensors
+                del video_tensor, labels, outputs, predicted
+                
+                # Periodic cache clearing every 50 videos
+                if i % 50 == 0:
+                    if self.device.type == 'cuda':
+                        torch.cuda.empty_cache()
+                    gc.collect()
 
         # Calculate Latency Stats
         avg_latency_ms = np.mean(latencies) * 1000
