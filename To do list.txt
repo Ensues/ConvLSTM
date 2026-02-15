@@ -1,7 +1,6 @@
 To do list:
 
 Quick Wins (Easy + High Impact):
-- Gradient clipping: Prevent exploding gradients
 - Early stopping: Stop training when validation stops improving
 - Dropout layers: Add dropout in the linear layer to prevent overfitting
 
@@ -24,3 +23,6 @@ Nice-to-Have:
 - Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau, CosineAnnealing)
 - Clear cache: torch.cuda.empty_cache() between epochs
 - Delete intermediate tensors: Use del and clear unnecessary variables
+
+Eric Done:
+- Gradient clipping: Prevent exploding gradients

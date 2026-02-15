@@ -39,11 +39,12 @@ PARAMS = {
     'num_classes': 3 
 }
 
-def train_one_epoch(model, loader, criterion, optimizer):
+def train_one_epoch(model, loader, criterion, optimizer, max_grad_norm=1.0):
     model.train()
     running_loss = 0.0
     correct = 0
     total = 0
+    total_grad_norm = 0.0
     
     loop = tqdm(loader, leave=True)
     for batch_idx, (data, targets) in enumerate(loop):
@@ -57,6 +58,11 @@ def train_one_epoch(model, loader, criterion, optimizer):
         # Backward
         optimizer.zero_grad()
         loss.backward()
+        
+        # Gradient Clipping: Prevent exploding gradients in ConvLSTM
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+        total_grad_norm += grad_norm.item()
+        
         optimizer.step()
 
         # Stats
@@ -65,9 +71,10 @@ def train_one_epoch(model, loader, criterion, optimizer):
         correct += (predictions == targets).sum().item()
         total += targets.size(0)
         
-        loop.set_description(f"Loss: {loss.item():.4f}")
+        loop.set_description(f"Loss: {loss.item():.4f} | GradNorm: {grad_norm.item():.3f}")
 
-    return running_loss / len(loader), 100 * correct / total
+    avg_grad_norm = total_grad_norm / len(loader)
+    return running_loss / len(loader), 100 * correct / total, avg_grad_norm
 
 def main():
     # Data Setup
@@ -159,7 +166,7 @@ def main():
     
     for epoch in range(NUM_EPOCHS):
         print(f"\nEpoch {epoch+1}/{NUM_EPOCHS}")
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer)
+        train_loss, train_acc, avg_grad_norm = train_one_epoch(model, train_loader, criterion, optimizer, max_grad_norm=1.0)
         
         # Validation
         model.eval()
@@ -176,6 +183,7 @@ def main():
         
         val_acc = 100 * val_correct / val_total
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
+        print(f"Avg Gradient Norm: {avg_grad_norm:.4f} (clipped at 1.0)")
 
         # Save Best Model
         if val_acc > best_acc:
