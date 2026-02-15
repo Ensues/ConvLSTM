@@ -65,7 +65,7 @@ class ConvLSTM(nn.Module):
     """
 
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers,
-                 batch_first=False, bias=True, return_all_layers=False):
+                 batch_first=True, bias=True, return_all_layers=False):
         super(ConvLSTM, self).__init__()
 
         # Making sure the 'eyes' (kernel_size) are the right shape
@@ -95,40 +95,45 @@ class ConvLSTM(nn.Module):
         self.cell_list = nn.ModuleList(cell_list)
 
     def forward(self, input_tensor, hidden_state=None):
-        # Organizing dimensions to [Batch, Time, Channel, Height, Width]
+        # input_tensor format: [Batch, Time, Channel, Height, Width]
+        
         if not self.batch_first:
+            # (Time, Batch, Channel, Height, Width) -> (Batch, Time, Channel, Height, Width)
             input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
 
-        b, _, _, h, w = input_tensor.size()
+        # Get Dimensions using the Correct Indices
+        b, seq_len, _, h, w = input_tensor.size()
 
-        # Initializing hidden states if not provided
         if hidden_state is None:
             hidden_state = self._init_hidden(batch_size=b, image_size=(h, w))
 
         layer_output_list = []
         last_state_list = []
-        
-        seq_len = input_tensor.size(1)
+
         cur_layer_input = input_tensor
 
-        #  Going through each layer and each second of video
         for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]
             output_inner = []
+            
+            # Loop over TIME (seq_len), not Batch
             for t in range(seq_len):
-                # Iterating through every frame in the video
-                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                 cur_state=[h, c])
-                output_inner.append(h) 
+                # Slice the time dimension: [Batch, Channel, H, W]
+                # If layer_idx == 0, cur_layer_input is [B, T, C, H, W]
+                # If layer_idx > 0, cur_layer_input is [B, T, Hidden, H, W] (from previous layer stack)
+                
+                input_t = cur_layer_input[:, t, :, :, :]
+                
+                h, c = self.cell_list[layer_idx](input_tensor=input_t, cur_state=[h, c])
+                output_inner.append(h)
 
-            # Passing the result of this layer as the input to the next layer
+            # Stack along Time dimension (dim=1 because we enforce batch_first internally now)
             layer_output = torch.stack(output_inner, dim=1)
             cur_layer_input = layer_output
 
             layer_output_list.append(layer_output)
             last_state_list.append([h, c])
 
-        # Returning either everything or just the top layer's result
         if not self.return_all_layers:
             layer_output_list = layer_output_list[-1:]
             last_state_list = last_state_list[-1:]
@@ -164,28 +169,38 @@ class ConvLSTMModel(nn.Module):
     conclusion (the last frame's features) and maps it to a category (Class).
     """
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers, height, width,
-                 batch_first=False, bias=True, return_all_layers=False, num_classes=3, dropout_rate=0.5):
+                 batch_first=True, bias=True, return_all_layers=False, num_classes=3, dropout_rate=0.5):
         super(ConvLSTMModel, self).__init__()
         
         # The core temporal processor
-        self.convlstm = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first, bias, return_all_layers)
+        # Ensure batch_first is passed correctly
+        self.convlstm = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, 
+                                 batch_first=batch_first, bias=bias, 
+                                 return_all_layers=return_all_layers)
         
         # Dropout for regularization (prevents overfitting)
         self.dropout = nn.Dropout(p=dropout_rate)
         
         # The final decision layer, which converts features to classes (e.g., 0, 1, or 2)
+        # Input to linear is: Hidden_Dim * H * W
         self.linear = nn.Linear(hidden_dim[-1] * height * width, num_classes)
 
     def forward(self, input_tensor, hidden_state=None):
         # Processes the whole video
         x, _ = self.convlstm(input_tensor)
         
+        # x[0] shape is now guaranteed to be [Batch, Time, Hidden, H, W]
+        # We take the last time step: x[0][:, -1, :, :, :]
+        
+        last_time_step = x[0][:, -1, :, :, :]
+        
         # Flatten the image features into a long vector
-        x = torch.flatten(x[0][:,-1,:,:,:], start_dim=1)
+        # Flatten starting from dimension 1 (Channels/Hidden)
+        flattened = torch.flatten(last_time_step, start_dim=1)
         
         # Apply dropout for regularization (only active during training)
-        x = self.dropout(x)
+        flattened = self.dropout(flattened)
         
         # Predict the class
-        x = self.linear(x) 
-        return x
+        output = self.linear(flattened)
+        return output

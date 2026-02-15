@@ -7,9 +7,9 @@ import pandas as pd
 import numpy as np
 import time
 import gc
-from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report
 import os
-import random 
+import random
+from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report
 
 # Custom project imports
 from models.conv_lstm_classifier import ConvLSTMModel
@@ -29,9 +29,8 @@ class Tester:
             transforms.Resize((HEIGHT, WIDTH))
         ])
         
-        # Load the Architecture
         self.model = ConvLSTMModel(
-            input_dim=3,
+            input_dim=6,
             hidden_dim=[64, 32],
             kernel_size=(3, 3),
             num_layers=2,
@@ -40,6 +39,18 @@ class Tester:
             num_classes=3,
             dropout_rate=0.5  # Dropout not applied during eval mode
         ).to(self.device)
+        
+        # 3-channel model 
+        # self.model = ConvLSTMModel(
+        #     input_dim=3,
+        #     hidden_dim=[64, 32],
+        #     kernel_size=(3, 3),
+        #     num_layers=2,
+        #     height=HEIGHT,
+        #     width=WIDTH,
+        #     num_classes=3,
+        #     dropout_rate=0.5
+        # ).to(self.device)
         
         # Load the Weights
         self.load_weights()
@@ -58,26 +69,7 @@ class Tester:
         # Processes data one-by-one to measure real-world performance
         print("Preparing Test Data...")
 
-        """
-        full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=self.transforms)
-        
-        # Re-creating the 60/20/20 split
-        SEED = 8
-        total_size = len(full_dataset)
-        train_size = int(0.6 * total_size)
-        val_size = int(0.2 * total_size)
-        test_size = total_size - train_size - val_size
-
-        generator = torch.Generator().manual_seed(SEED)
-        
-        # Split, but this time we only care about the LAST chunk (test_dataset)
-        _, _, test_dataset = random_split(
-            full_dataset, 
-            [train_size, val_size, test_size], 
-            generator=generator
-        )
-        # Note that the first two are "_" again because wwe do not need them
-        """
+        # Splitfolders approach
         test_dir = os.path.join("output", "test")
         test_dir_vid = os.path.join(test_dir, "videos")
         test_lbl_vid = os.path.join(test_dir, "labels")
@@ -87,6 +79,25 @@ class Tester:
         test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0) 
         
         print(f"Evaluating {len(test_dataset)} videos and measuring latency...")
+        
+        # full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=self.transforms)
+        # 
+        # SEED = 8
+        # total_size = len(full_dataset)
+        # train_size = int(0.6 * total_size)
+        # val_size = int(0.2 * total_size)
+        # test_size = total_size - train_size - val_size
+        #
+        # generator = torch.Generator().manual_seed(SEED)
+        # 
+        # _, _, test_dataset = random_split(
+        #     full_dataset, 
+        #     [train_size, val_size, test_size], 
+        #     generator=generator
+        # )
+        # 
+        # test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0) 
+        # print(f"Evaluating {len(test_dataset)} videos and measuring latency...")
         
         all_preds = []
         all_labels = []

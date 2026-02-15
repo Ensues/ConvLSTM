@@ -45,6 +45,17 @@ PARAMS = {
     'num_classes': 3 
 }
 
+# Proto 2: 3-channel RGB-only (Eric's version - COMMENTED OUT)
+# PARAMS = {
+#     'input_dim': 3,
+#     'hidden_dim': [64, 32], 
+#     'kernel_size': (3, 3),
+#     'num_layers': 2,
+#     'height': HEIGHT,
+#     'width': WIDTH,
+#     'num_classes': 3 
+# }
+
 def train_one_epoch(model, loader, criterion, optimizer, max_grad_norm=1.0):
     model.train()
     running_loss = 0.0
@@ -97,29 +108,8 @@ def main():
         transforms.Resize((HEIGHT, WIDTH))
     ])
 
-    """
-    full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=transforms_train)
-    
-    # Train/Val/Test Split
-    total_size = len(full_dataset)
-    train_size = int(0.6 * total_size)                  # 60% for Training
-    val_size = int(0.2 * total_size)                    # 20% for Validation
-    test_size = total_size - train_size - val_size      # Remaining 20% for Testing
-
-    # The generator with our fixed seed so the split is always the same
-    generator = torch.Generator().manual_seed(SEED)
-    
-    # Split the dataset into three parts
-    train_dataset, val_dataset, _ = random_split(
-        full_dataset, 
-        [train_size, val_size, test_size], 
-        generator=generator
-    )
-    # Note: The last part is '_' because we don't touch the test set in train.py
-    """
-
-    # Split the files in the directory into three directories: training (80%), validation (20%), and testing (20%)
-    splitfolders.ratio(DATA_DIR, output="output", seed=8, ratio=(.6, .2, .2), group="sibling",move=False, shuffle=True) 
+    # Split the files in the directory into three directories: training (60%), validation (20%), and testing (20%)
+    splitfolders.ratio(DATA_DIR, output="output", seed=8, ratio=(.6, .2, .2), group="sibling", move=False, shuffle=True) 
 
     train_dir = os.path.join("output", "train")
     val_dir = os.path.join("output", "val")
@@ -169,10 +159,49 @@ def main():
     ).to(DEVICE)
 
     # CrossEntropyLoss is used to handle class imbalance
-    class_weights = torch.FloatTensor([front_weight,left_weight,right_weight]).to(DEVICE)
+    class_weights = torch.FloatTensor([front_weight, left_weight, right_weight]).to(DEVICE)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    
+    # In-memory random splitting
+    # transforms_train = transforms.Compose([
+    #     transforms.Resize((HEIGHT, WIDTH)),
+    #     transforms.ToTensor()
+    # ])
+    # 
+    # full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, transforms=transforms_train)
+    # 
+    # total_size = len(full_dataset)
+    # train_size = int(0.6 * total_size)
+    # val_size = int(0.2 * total_size)
+    # test_size = total_size - train_size - val_size
+    # 
+    # generator = torch.Generator().manual_seed(SEED)
+    # 
+    # train_dataset, val_dataset, _ = random_split(
+    #     full_dataset, 
+    #     [train_size, val_size, test_size], 
+    #     generator=generator
+    # )
+    # 
+    # print(f"Data Split -> Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test (Unused): {test_size}")
+    # 
+    # train_loader = DataLoader(train_dataset, batch_size=BATCH, shuffle=True, num_workers=0)
+    # val_loader = DataLoader(val_dataset, batch_size=BATCH, shuffle=False, num_workers=0)
+    # 
+    # model = ConvLSTMModel(
+    #     input_dim=PARAMS['input_dim'],
+    #     hidden_dim=PARAMS['hidden_dim'],
+    #     kernel_size=PARAMS['kernel_size'],
+    #     num_layers=PARAMS['num_layers'],
+    #     height=PARAMS['height'],
+    #     width=PARAMS['width'],
+    #     num_classes=PARAMS['num_classes']
+    # ).to(DEVICE)
+    # 
+    # criterion = nn.CrossEntropyLoss()
+    # optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
     # Learning Rate Scheduler: Reduces LR when validation accuracy plateaus
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(

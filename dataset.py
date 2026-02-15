@@ -6,23 +6,64 @@ from torch.utils.data import Dataset
 import random
 import numpy as np
 import scipy.stats as ss
+from PIL import Image
 
 from utils import *
 
 class MVOVideoDataset(Dataset):
     """
-    This takes a 3-second video and turns it into 
+    This takes a 3-second video and turns it into
     a 'data packet' for the AI to study.
     """
     def __init__(self, video_folder, label_folder, transforms=None):
         self.video_folder = video_folder
         self.label_folder = label_folder
         self.transforms = transforms
-        # List all the 3-second videos
+
+        # Simple file listing
         self.video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
         self.csv_files = [f.replace('.mp4', '.csv') for f in self.video_files]
+        
+        # Proto 2: Improved validation with multiple CSV naming conventions (Eric's version - COMMENTED OUT)
+        # valid_video_files = []
+        # valid_csv_files = []
+        # try:
+        #     all_video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
+        #     for video_name in all_video_files:
+        #         video_path = os.path.join(video_folder, video_name)
+        #
+        #         # Try multiple CSV naming conventions
+        #         csv_name = video_name.replace('.mp4', '.csv')
+        #         csv_path = os.path.join(label_folder, csv_name)
+        #         
+        #         if not os.path.exists(csv_path):
+        #             csv_name = video_name.replace('.mp4', '_labels.csv')
+        #             csv_path = os.path.join(label_folder, csv_name)
+        #         
+        #         if not os.path.exists(csv_path):
+        #             csv_name = video_name.replace('.mp4', '_labels_A.csv')
+        #             csv_path = os.path.join(label_folder, csv_name)
+        #
+        #         if os.path.exists(video_path) and os.path.exists(csv_path):
+        #             valid_video_files.append(video_name)
+        #             valid_csv_files.append(csv_name)
+        #         else:
+        #             if not os.path.exists(video_path):
+        #                 print(f"WARNING: Video file not found: {video_path}. Skipping.")
+        #             if not os.path.exists(csv_path):
+        #                 print(f"WARNING: Label file not found for video {video_name}. Skipping.")
+        #
+        #     self.video_files = valid_video_files
+        #     self.csv_files = valid_csv_files
+        #     print(f"Initialized dataset with {len(self.video_files)} valid video-label pairs.")
+        #
+        # except FileNotFoundError:
+        #     print(f"Error: Could not find folder {video_folder} or {label_folder}.")
+        #     self.video_files = []
+        #     self.csv_files = []
+        
         self.split_type = ''
-        self.positions = [] # If split_type == 'train', this would not be filled.
+        self.positions = []  # If split_type == 'train', this would not be filled
 
     def __len__(self):
         return len(self.video_files)
@@ -31,7 +72,7 @@ class MVOVideoDataset(Dataset):
         video_name = self.video_files[idx]
         video_path = os.path.join(self.video_folder, video_name)
         
-        #  Get the Label from the matching CSV file
+        # Get the Label from the matching CSV file
         csv_name = video_name.replace('.mp4', '.csv')
         csv_path = os.path.join(self.label_folder, csv_name)
         
@@ -40,6 +81,7 @@ class MVOVideoDataset(Dataset):
         df = pd.read_csv(csv_path)
         label = self.labeler(df)
 
+        # Intent system
         if self.split_type == 'TRAIN':
             intent_position = self.get_intent_position()
         else:
@@ -58,7 +100,6 @@ class MVOVideoDataset(Dataset):
             else:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 if self.transforms:
-                    from PIL import Image
                     frame = Image.fromarray(frame)
                     frame = self.transforms(frame)
 
@@ -75,15 +116,46 @@ class MVOVideoDataset(Dataset):
             frames.append(frame)
         cap.release()
 
-        # Convert list to a 5D tensor [1, 30, 6, 128, 128]
+        # Convert list to a 5D tensor [30, 6, 128, 128]
         video_tensor = torch.stack(frames, dim=0)
         
         # Memory cleanup: Delete intermediate list
         del frames, intent_torch
 
         return video_tensor, torch.tensor(label).long()
-    
+        
+        # Proto 2: Simplified approach without intent 
+        # csv_name = self.csv_files[idx]
+        # csv_path = os.path.join(self.label_folder, csv_name)
+        # 
+        # df = pd.read_csv(csv_path)
+        # label = self.labeler(df)
+        #
+        # cap = cv2.VideoCapture(video_path)
+        # frames = []
+        # for _ in range(30): 
+        #     ret, frame = cap.read()
+        #     if not ret:
+        #         frame_tensor = torch.zeros((3, HEIGHT, WIDTH))
+        #     else:
+        #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        #         if self.transforms:
+        #             frame = Image.fromarray(frame)
+        #             frame_tensor = self.transforms(frame)
+        #         else:
+        #             frame_tensor = torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0
+        #     
+        #     frames.append(frame_tensor)
+        #     
+        # cap.release()
+        #
+        # video_tensor = torch.stack(frames, dim=0)
+        # del frames
+        #
+        # return video_tensor, torch.tensor(label).long()
+
     def labeler(self, df):
+        # Original implementation
         df_lbl_count = []
 
         for i in range(0, 3):
@@ -99,9 +171,27 @@ class MVOVideoDataset(Dataset):
             label = df['label_id_corrected'].tail(12).mode()[0]
 
         return label
+        
+        # df_lbl_count = []
+        # col = 'label_id_corrected' if 'label_id_corrected' in df.columns else df.columns[-1]
+        # counts = df[col].tail(24).value_counts()
+        # 
+        # for i in range(0, 3):
+        #     df_lbl_count.append(counts.get(i, 0))
+        #
+        # if df_lbl_count[0] == 24:
+        #     label = 0  # Front
+        # elif df_lbl_count[1] > df_lbl_count[2]:
+        #     label = 1  # Left
+        # elif df_lbl_count[1] < df_lbl_count[2]:
+        #     label = 2  # Right
+        # else: 
+        #     label = df[col].tail(12).mode()[0]
+        #
+        # return label
 
     def get_intent_position(self):
-        # 50% of the dataset have intent
+        # 60% of the dataset have intent
         if random.random() < 0.6:
             # The time positions of the first 2 seconds (videos - 10 fps)
             start_frame = 0
@@ -147,6 +237,25 @@ class MVOVideoDataset(Dataset):
             label_counts[label] += 1
         
         return label_counts, sum(label_counts.values())
+        
+        # Proto 2: Improved with CSV fallback (Eric's version - COMMENTED OUT)
+        # label_counts = {0: 0, 1: 0, 2: 0}
+        # for video_name in self.video_files:
+        #     csv_name = video_name.replace('.mp4', '.csv')
+        #     csv_path = os.path.join(self.label_folder, csv_name)
+        #     
+        #     if not os.path.exists(csv_path):
+        #         csv_name = video_name.replace('.mp4', '_labels.csv')
+        #         csv_path = os.path.join(self.label_folder, csv_name)
+        #     
+        #     if not os.path.exists(csv_path):
+        #         csv_name = video_name.replace('.mp4', '_labels_A.csv')
+        #         csv_path = os.path.join(self.label_folder, csv_name)
+        #
+        #     df = pd.read_csv(csv_path)
+        #     label = self.labeler(df)        
+        #     label_counts[label] += 1
+        # return label_counts, sum(label_counts.values())
     
     def set_split_type(self, type, len_dataset):
         global VAL_POSITIONS

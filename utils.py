@@ -1,7 +1,8 @@
 # Hyperparanms
 HEIGHT = 128
 WIDTH = 128
-CHANNELS = 6
+CHANNELS = 6  # Proto 1: 6-channel (RGB + Intent)
+# CHANNELS = 3  # Proto 2: 3-channel RGB-only (Eric's simplified version)
 FPS = 10
 DURATION = 3 
 SEQ_LEN = FPS * DURATION
@@ -13,9 +14,7 @@ def get_label_id(label_name):
     return mapping.get(label_name.lower(), 0)
 
 # Paths based on your setup
-VIDEO_DIR = r''
-LABEL_DIR = r''
-
+# Proto 1: Splitfolders approach (ACTIVE)
 # Contains both and only video and label directories
 # Folder names are strictly "videos" and "labels"
 DATA_DIR = r'D:\Thesis 2\Thesis 2\AIGD\split folder' 
@@ -23,3 +22,7 @@ DATA_DIR = r'D:\Thesis 2\Thesis 2\AIGD\split folder'
 # Intent files
 VAL_POSITIONS = ''
 TEST_POSITIONS = ''
+
+# Proto 2: In-memory splitting approach (Eric's version - COMMENTED OUT)
+# VIDEO_DIR = r''
+# LABEL_DIR = r''
