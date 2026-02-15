@@ -1,7 +1,7 @@
 Eric & Hannah To do list:
 
 Medium Effort, High Reward:
-- Mixed precision training: Use torch.cuda.amp for faster training 1
+- Mixed precision training: Use torch.cuda.amp for faster training (needs GPU, we have none right now, wag na muna)
 - Tensorboard logging: Track loss curves, accuracy, learning rate 5
 - Batch normalization: Add after ConvLSTM layers for training stability 3
 - Validation metrics per class: Track precision/recall per class during training 8
@@ -14,7 +14,6 @@ Big Projects (High Impact but Time-Intensive):
 Nice-to-Have:
 - Resume training: Save/load optimizer state and epoch number 7
 - Checkpointing: Save model every N epochs, not just best 6
-- Gradient accumulation: Simulate larger batches with less memory 2
 
 Eric Finished List:
 - Gradient clipping: Prevent exploding gradients
@@ -23,3 +22,4 @@ Eric Finished List:
 - Track inference time during validation
 - Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau)
 - Delete intermediate tensors: Use del and clear unnecessary variables
+- Gradient accumulation: Simulate larger batches with less memory
