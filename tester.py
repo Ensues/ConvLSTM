@@ -36,7 +36,8 @@ class Tester:
             num_layers=2,
             height=HEIGHT,
             width=WIDTH,
-            num_classes=3
+            num_classes=3,
+            dropout_rate=0.5  # Dropout not applied during eval mode
         ).to(self.device)
         
         # Load the Weights

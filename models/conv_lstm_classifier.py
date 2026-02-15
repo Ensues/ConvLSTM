@@ -164,11 +164,14 @@ class ConvLSTMModel(nn.Module):
     conclusion (the last frame's features) and maps it to a category (Class).
     """
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers, height, width,
-                 batch_first=False, bias=True, return_all_layers=False, num_classes=3):
+                 batch_first=False, bias=True, return_all_layers=False, num_classes=3, dropout_rate=0.5):
         super(ConvLSTMModel, self).__init__()
         
         # The core temporal processor
         self.convlstm = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first, bias, return_all_layers)
+        
+        # Dropout for regularization (prevents overfitting)
+        self.dropout = nn.Dropout(p=dropout_rate)
         
         # The final decision layer, which converts features to classes (e.g., 0, 1, or 2)
         self.linear = nn.Linear(hidden_dim[-1] * height * width, num_classes)
@@ -179,6 +182,9 @@ class ConvLSTMModel(nn.Module):
         
         # Flatten the image features into a long vector
         x = torch.flatten(x[0][:,-1,:,:,:], start_dim=1)
+        
+        # Apply dropout for regularization (only active during training)
+        x = self.dropout(x)
         
         # Predict the class
         x = self.linear(x) 

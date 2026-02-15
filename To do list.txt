@@ -1,9 +1,5 @@
 To do list:
 
-Quick Wins (Easy + High Impact):
-- Early stopping: Stop training when validation stops improving
-- Dropout layers: Add dropout in the linear layer to prevent overfitting
-
 Medium Effort, High Reward:
 - Mixed precision training: Use torch.cuda.amp for faster training
 - Tensorboard logging: Track loss curves, accuracy, learning rate
@@ -26,3 +22,5 @@ Nice-to-Have:
 
 Eric Done:
 - Gradient clipping: Prevent exploding gradients
+- Early stopping: Stop training when validation stops improving
+- Dropout layers: Add dropout in the linear layer to prevent overfitting
