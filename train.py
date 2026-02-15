@@ -21,6 +21,10 @@ LEARNING_RATE = 1e-4
 SAVED_MODEL_PATH = "best_convlstm.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Early Stopping Configuration
+EARLY_STOP_PATIENCE = 5  # Stop if no improvement for 5 epochs
+MIN_DELTA = 0.01  # Minimum change to qualify as improvement (0.01%)
+
 # Setting a fixed random seed to ensure that 
 # we get the exact same data split every time we run the script
 SEED = 8
@@ -160,9 +164,12 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # Training Loop
+    # Training Loop with Early Stopping
     best_acc = 0
+    epochs_no_improve = 0
+    early_stop = False
     print(f"Training on {DEVICE} with {len(train_dataset)} videos.")
+    print(f"Early stopping enabled: patience={EARLY_STOP_PATIENCE}, min_delta={MIN_DELTA}%")
     
     for epoch in range(NUM_EPOCHS):
         print(f"\nEpoch {epoch+1}/{NUM_EPOCHS}")
@@ -185,11 +192,25 @@ def main():
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
         print(f"Avg Gradient Norm: {avg_grad_norm:.4f} (clipped at 1.0)")
 
-        # Save Best Model
-        if val_acc > best_acc:
+        # Save Best Model & Early Stopping Check
+        if val_acc > best_acc + MIN_DELTA:
             best_acc = val_acc
+            epochs_no_improve = 0
             torch.save(model.state_dict(), SAVED_MODEL_PATH)
-            print(f"New best model saved! ({val_acc:.2f}%)")
+            print(f"✓ New best model saved! ({val_acc:.2f}%)")
+        else:
+            epochs_no_improve += 1
+            print(f"No improvement for {epochs_no_improve} epoch(s). Best: {best_acc:.2f}%")
+            
+            if epochs_no_improve >= EARLY_STOP_PATIENCE:
+                print(f"\n⚠ Early stopping triggered! No improvement for {EARLY_STOP_PATIENCE} epochs.")
+                print(f"Best validation accuracy: {best_acc:.2f}%")
+                early_stop = True
+                break
+    
+    if not early_stop:
+        print(f"\n✓ Training completed all {NUM_EPOCHS} epochs.")
+    print(f"Final best validation accuracy: {best_acc:.2f}%")
 
 if __name__ == "__main__":
     main()
