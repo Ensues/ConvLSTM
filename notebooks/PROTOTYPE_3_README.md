@@ -215,7 +215,7 @@ for batch_idx, (data, targets) in enumerate(loop):
 ---
 
 ### 8. Frame Preprocessing & Caching
-**What it is:** Pre-extraction and caching of video frames to disk, eliminating repeated video decoding during training. Tested on Google Colab T4 GPU and it worked
+**What it is:** Pre-extraction and caching of video frames to disk, eliminating repeated video decoding during training. Tested on Google Colab T4 GPU and it worked very well from a param of 2 batches for 500 vid label pairs of 40 mins without this to 5 mins after implementing this.
 
 **How it's implemented:**
 ```python
