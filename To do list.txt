@@ -1,7 +1,6 @@
 Eric & Hannah To do list:
 
 Medium Effort, High Reward:
-- Mixed precision training: Use torch.cuda.amp for faster training (needs GPU, we have none right now, wag na muna)
 - Tensorboard logging: Track loss curves, accuracy, learning rate 5
 - Validation metrics per class: Track precision/recall per class during training 8
 
@@ -22,4 +21,10 @@ Eric Finished List:
 - Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau)
 - Delete intermediate tensors: Use del and clear unnecessary variables
 - Gradient accumulation: Simulate larger batches with less memory
-- Batch normalization: Add after ConvLSTM layers for training stability 
+
+Failures
+- Mixed precision training: Use torch.cuda.amp for faster training (needs GPU, we have none right now, wag na muna)
+- Batch normalization: Add after ConvLSTM layers for training stability (I did but it gave worse results, further discussed in the proto 2 readme)
+- Increase workers
+- Pin memory
+- Persistent workers
