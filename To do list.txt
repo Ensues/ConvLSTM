@@ -5,7 +5,6 @@ Medium Effort, High Reward:
 - Validation metrics per class: Track precision/recall per class during training 8
 
 Big Projects (High Impact but Time-Intensive):
-- Video preprocessing: Pre-extract and cache frames to disk 4
 - TorchScript compilation: torch.jit.script() for faster inference 9
 - ONNX export: Run on optimized runtime 10
 
@@ -21,6 +20,7 @@ Eric Finished List:
 - Learning rate scheduling: Reduce LR when validation plateaus (ReduceLROnPlateau)
 - Delete intermediate tensors: Use del and clear unnecessary variables
 - Gradient accumulation: Simulate larger batches with less memory
+- Video preprocessing: Pre-extract and cache frames to disk
 
 Failures
 - Mixed precision training: Use torch.cuda.amp for faster training (needs GPU, we have none right now, wag na muna)
