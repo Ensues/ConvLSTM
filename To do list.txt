@@ -1,16 +1,16 @@
 Eric & Hannah To do list:
 
 Medium Effort, High Reward:
-- Tensorboard logging: Track loss curves, accuracy, learning rate 5
-- Validation metrics per class: Track precision/recall per class during training 8
+- Validation metrics per class: Track precision/recall per class during training 
 
 Big Projects (High Impact but Time-Intensive):
-- TorchScript compilation: torch.jit.script() for faster inference 9
-- ONNX export: Run on optimized runtime 10
+- TorchScript compilation: torch.jit.script() for faster inference - Like ONNX but it appears to apparently improve inference speed so could be nice to have
+- ONNX export: Run on optimized runtime - Unsure if needed, ngl parang unnecessary wambo jumbo but could help maybe
+- Choose either TorchScript compilation, ONNX export, or to not do this at all
 
 Nice-to-Have:
-- Resume training: Save/load optimizer state and epoch number 7
-- Checkpointing: Save model every N epochs, not just best 6
+- Resume training: Save/load optimizer state and epoch number 
+- Checkpointing: Save model every N epochs, not just best 
 
 Eric Finished List:
 - Gradient clipping: Prevent exploding gradients
@@ -22,9 +22,12 @@ Eric Finished List:
 - Gradient accumulation: Simulate larger batches with less memory
 - Video preprocessing: Pre-extract and cache frames to disk
 
-Failures
-- Mixed precision training: Use torch.cuda.amp for faster training (needs GPU, we have none right now, wag na muna)
-- Batch normalization: Add after ConvLSTM layers for training stability (I did but it gave worse results, further discussed in the proto 2 readme)
-- Increase workers
-- Pin memory
-- Persistent workers
+Eric Implemented but Unsure List
+- Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
+- Batch normalization: Add after ConvLSTM layers for training stability - I did but it gave worse results, further discussed in the proto 2 readme 
+
+Will come back to maybe:
+- Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
+- Increase workers - failed due windows, did not try on colab
+- Pin memory - failed due windows, did not try on colab
+- Persistent workers - failed due windows, did not try on colab
