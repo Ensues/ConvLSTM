@@ -13,9 +13,9 @@ data:
 # PATHS
 # ----------------------------------------------------------------------------
 paths:
-  video_dir: '/content/drive/MyDrive/test_data/videos/'
-  label_dir: '/content/drive/MyDrive/test_data/labels/'
-  cache_dir: '/content/cache/'   # Local SSD for fast access
+  video_dir:  '/content/drive/MyDrive/test_data/videos/'
+  label_dir:  '/content/drive/MyDrive/test_data/labels/'
+  cache_dir:  '/content/cache/'  # Local SSD for fast access
   model_save: 'best_convlstm.pth'
 
 # TRAINING CONFIGURATION
