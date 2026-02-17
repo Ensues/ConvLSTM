@@ -1,4 +1,4 @@
-Eric & Hannah To do list:
+Hannah To do list:
 
 Medium Effort, High Reward:
 - Validation metrics per class: Track precision/recall per class during training 
@@ -6,12 +6,18 @@ Medium Effort, High Reward:
 Big Projects (High Impact but Time-Intensive):
 - TorchScript compilation: torch.jit.script() for faster inference - Like ONNX but it appears to apparently improve inference speed so could be nice to have
 - ONNX export: Run on optimized runtime - Unsure if needed, ngl parang unnecessary wambo jumbo but could help maybe
-- Choose either TorchScript compilation, ONNX export, or to not do this at all
-- I'm also unsure if this can apply to mobile or not
+# Choose either TorchScript compilation, ONNX export, or to not do this at all
+# I'm also unsure if this can apply to mobile or not
 
 Nice-to-Have:
 - Resume training: Save/load optimizer state and epoch number 
 - Checkpointing: Save model every N epochs, not just best 
+
+Will come back to maybe:
+- Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
+- Increase workers - failed due windows, did not try on colab
+- Pin memory - failed due windows, did not try on colab
+- Persistent workers - failed due windows, did not try on colab
 
 Eric Finished List:
 - Gradient clipping: Prevent exploding gradients
@@ -26,9 +32,3 @@ Eric Finished List:
 Eric Implemented but Unsure List
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
 - Batch normalization: Add after ConvLSTM layers for training stability - I did but it gave worse results, further discussed in the proto 2 readme 
-
-Will come back to maybe:
-- Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
-- Increase workers - failed due windows, did not try on colab
-- Pin memory - failed due windows, did not try on colab
-- Persistent workers - failed due windows, did not try on colab
