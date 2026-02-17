@@ -16,7 +16,6 @@ Nice-to-Have:
 Will come back to maybe:
 - Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
 - Increase workers - failed due windows, did not try on colab
-- Pin memory - failed due windows, did not try on colab
 - Persistent workers - failed due windows, did not try on colab
 
 Eric Finished List:
@@ -29,6 +28,7 @@ Eric Finished List:
 - Gradient accumulation: Simulate larger batches with less memory
 - Video preprocessing: Pre-extract and cache frames to disk
 - Dynamic Cache Manager with LRU Eviction
+- Pin memory
 - Documentation chene
 - .yaml
 
