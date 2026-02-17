@@ -1,7 +1,7 @@
-# Prototype 5 - Enhanced ConvLSTM Model Documentation
+# Prototype 7 - Enhanced ConvLSTM Model Documentation
 
 ## Overview
-Prototype 5 is the optimized version of the ConvLSTM model for Assistive Navigation Prediction. This version incorporates **9 critical improvements** that address training stability, memory efficiency, storage constraints, overfitting, data loading bottlenecks, and performance monitoring issues.
+Prototype 7 is the optimized version of the ConvLSTM model for Assistive Navigation Prediction. This version incorporates **8 critical improvements** that address training stability, memory efficiency, storage constraints, overfitting, data loading bottlenecks, and performance monitoring issues. 
 
 ---
 
@@ -30,7 +30,7 @@ grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
 **How it's implemented:**
 ```python
-EARLY_STOP_PATIENCE = 2  # Stop if no improvement for 2 epochs
+EARLY_STOP_PATIENCE = 5  # Stop if no improvement for 5 epochs
 MIN_DELTA = 0.01  # Minimum change to qualify as improvement (0.01%)
 
 # In training loop
@@ -48,7 +48,7 @@ else:
 **Why it helps:**
 - **Problem solved:** Models can continue training long after they've stopped improving on validation data, wasting computational resources and potentially degrading performance through overfitting.
 - **Impact:** Saves training time, reduces computational costs, and prevents overfitting by stopping before the model starts memorizing training data instead of learning generalizable patterns.
-- **Adaptive:** Uses both a patience parameter (2 epochs) and a minimum delta (0.01%) to avoid stopping on minor fluctuations.
+- **Adaptive:** Uses both a patience parameter (5 epochs) and a minimum delta (0.01%) to avoid stopping on minor fluctuations.
 
 **Comparison to base model:** The base model would run for all specified epochs regardless of performance, often overfitting to training data while validation accuracy plateaued or even decreased.
 
@@ -178,7 +178,7 @@ gc.collect()
 
 **How it's implemented:**
 ```python
-ACCUMULATION_STEPS = 4  # Effective batch size = BATCH * ACCUMULATION_STEPS (2 * 4 = 8)
+ACCUMULATION_STEPS = 4  # Effective batch size = BATCH * ACCUMULATION_STEPS (6 * 4 = 24)
 
 # In train_one_epoch()
 optimizer.zero_grad()  # Zero at start
@@ -214,75 +214,10 @@ for batch_idx, (data, targets) in enumerate(loop):
 
 ---
 
-### 8. Frame Preprocessing & Caching
-**What it is:** Pre-extraction and caching of video frames to disk, eliminating repeated video decoding during training. Tested on Google Colab T4 GPU and it worked very well from a param of 2 batches for 500 vid label pairs of 40 mins without this to 5 mins after implementing this.
-
-**How it's implemented:**
-```python
-# One-time preprocessing (run once before training)
-def preprocess_and_cache_videos(video_folder, cache_folder, transforms, num_frames=30):
-    # Extract frames from each video
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    for _ in range(num_frames):
-        ret, frame = cap.read()
-        # Apply transforms (resize, normalize)
-        frame_tensor = transforms(frame)
-        frames.append(frame_tensor)
-    
-    # Save as .npy file for fast loading
-    video_tensor = torch.stack(frames, dim=0)
-    np.save(cache_path, video_tensor.numpy())
-
-# Dataset with cache support
-class MVOVideoDataset(Dataset):
-    def __init__(self, video_folder, label_folder, transforms=None, cache_folder=None):
-        self.cache_folder = cache_folder
-        self.use_cache = cache_folder and os.path.exists(cache_folder)
-    
-    def __getitem__(self, idx):
-        if self.use_cache:
-            # Load from cache (FAST: ~5-10ms)
-            video_tensor = torch.from_numpy(np.load(cache_path))
-        else:
-            # Load from video file (SLOW: ~100-200ms)
-            video_tensor = self._load_from_video(video_name)
-```
-
-**Why it helps:**
-- **Problem solved:** Video decoding with `cv2.VideoCapture` is extremely slow (~100-200ms per video), taking 10-40x longer than the actual model forward pass. This creates a severe data loading bottleneck where the GPU sits idle waiting for data. I also created and pasted the code to a new preprocessor.py
-- **Impact:** 
-  - **10-20x faster data loading:** Reduces loading time from ~100-200ms to ~5-10ms per video
-  - **2.5-4x faster training epochs:** Epoch time drops from ~76 minutes to ~20-30 minutes
-  - **70-90% GPU utilization:** GPU spends time training instead of waiting for data (up from 20-30%)
-  - **Consistent preprocessing:** Frames are transformed once - no variation between epochs, improving reproducibility
-  - **Lower power consumption:** Less CPU time decoding videos repeatedly
-- **Storage requirements:** ~1-2MB per cached video (~600MB for 300 videos)
-- **One-time cost:** Preprocessing takes a few minutes but only needs to be done once
-
-**How to use:**
-```python
-# Step 1: Run preprocessing once (uncomment and execute)
-preprocessing_transforms = transforms.Compose([
-    transforms.Resize((HEIGHT, WIDTH)),
-    transforms.ToTensor()
-])
-preprocess_and_cache_videos(VIDEO_DIR, CACHE_DIR, preprocessing_transforms)
-
-# Step 2: Dataset automatically uses cache when available
-full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, 
-                                transforms=transforms_train, 
-                                cache_folder=CACHE_DIR)
-```
-
-**Comparison to base model:** The base model decoded videos from disk every single time they were accessed (potentially hundreds of times per video across epochs), wasting enormous amounts of CPU time and creating a severe training bottleneck. Frame caching eliminates this redundant work.
-
----
-
-### 9. Dynamic Cache Management (LRU Eviction) 
+### 8. Dynamic LRU Cache Management
 **What it is:** An intelligent cache management system that automatically detects available storage, pre-caches videos until a reserved amount of free space remains (default 10GB), then dynamically manages the cache during training using LRU eviction.
 
-**Version 3 Features:**
+**Key Features:**
 
 | Feature | Description | Benefit |
 |---------|-------------|---------|
@@ -387,6 +322,29 @@ cache_manager = CacheManager(
 cache_manager.warm_cache(VIDEO_DIR)
 ```
 
+**Cache Directory Best Practices:**
+
+For **Google Colab**, use local SSD for maximum performance:
+```python
+# Recommended for Colab (10-100x faster I/O)
+VIDEO_DIR = '/content/drive/MyDrive/test_data/videos/'  # Keep on Drive (source data)
+LABEL_DIR = '/content/drive/MyDrive/test_data/labels/'  # Keep on Drive (source data)
+CACHE_DIR = '/content/cache/'                            # Local SSD (very fast!)
+```
+
+**Cache Location Comparison:**
+
+| Location | Speed | Persistence | Best For |
+|----------|-------|-------------|----------|
+| `/content/cache/` | ⚡ Very Fast (SSD) | ❌ Cleared on disconnect | **Recommended** - Rebuilt via warm_cache() |
+| `/content/drive/MyDrive/` | 🐌 Very Slow (FUSE/Network) | ✅ Survives disconnect | Not recommended for cache |
+| `/dev/shm/` | ⚡⚡ Fastest (RAM) | ❌ Limited space (~5-10GB) | Very small datasets only |
+
+**Why local SSD for cache:**
+- **100x faster I/O:** Loading .npy from local SSD takes ~5ms vs ~100-500ms from Google Drive
+- **Auto-rebuilds:** The warm cache will rebuild local cache on runtime restart
+- **Best GPU utilization:** Fast cache I/O keeps GPU busy instead of waiting for Drive
+
 **Why it helps:**
 - **Problem solved:** Full datasets can exceed available storage (e.g., 23,660 videos × 5.6 MB = ~132 GB), making pre-caching impossible on limited storage like Google Drive's 5-15 GB free tier.
 - **Impact:**
@@ -400,8 +358,8 @@ cache_manager.warm_cache(VIDEO_DIR)
   - **Epoch efficiency:** Warm cache makes first epoch fast, subsequent epochs even faster
   - **Statistics logging:** Tracks hits, misses, evictions, warm-cached count per epoch
   - **O(1) operations:** All cache operations are constant time
-- **Storage calculation:** On Colab with 100GB disk, keeps 10GB free = ~90GB for cache
-- **Cache persistence:** Using `/content/drive/MyDrive/cache/` preserves cache across Colab sessions
+- **Storage calculation:** On Colab with ~108GB disk, keeps 10GB free = ~98GB for cache = ~17,500 videos cached
+- **Performance:** Local SSD cache provides 10-100x faster I/O than Google Drive FUSE filesystem
 
 **How to use:**
 ```python
@@ -439,7 +397,7 @@ full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, cache_manager=cache_manager
 # Epoch 1 Cache Stats: Hits: 300 | Misses: 0 | Hit Rate: 100.0% | Evictions: 0
 ```
 
-**Comparison to static caching (Feature 8):** Static caching pre-processes ALL videos upfront, requiring storage for the entire dataset. Dynamic caching v3 auto-detects available space, pre-warms the cache up to the limit, then dynamically manages the rest during training.
+**Comparison to static caching:** Static caching pre-processes ALL videos upfront, requiring storage for the entire dataset. Dynamic LRU caching auto-detects available space, pre-warms the cache up to the limit, then dynamically manages the rest during training.
 
 ---
 
@@ -457,17 +415,15 @@ These features work together synergistically:
 
 5. **Inference Tracking + Early Stopping:** Monitoring inference time during validation ensures the model remains efficient even as early stopping optimizes for accuracy.
 
-6. **Frame Caching + Memory Management:** Pre-cached frames load instantly, while memory management ensures the cache doesn't cause memory issues. Together they enable much faster iteration cycles.
+6. **LRU Cache + Memory Management:** Cached frames load instantly, while memory management ensures the cache doesn't cause memory issues. Together they enable much faster iteration cycles.
 
-7. **Frame Caching + Gradient Accumulation:** Fast data loading eliminates the I/O bottleneck, allowing gradient accumulation to fully utilize GPU compute without waiting for data.
-
-8. **Dynamic Cache Management + Limited Storage:** LRU eviction enables training on datasets that exceed available storage, making the pipeline viable for Google Drive's free tier or other storage-constrained environments.
+7. **LRU Cache + Gradient Accumulation:** Fast data loading eliminates the I/O bottleneck, allowing gradient accumulation to fully utilize GPU compute without waiting for data.
 
 ---
 
 ## Performance Improvements Summary
 
-| Aspect | Base Model | Prototype 5 | Improvement |
+| Aspect | Base Model | Prototype 7 | Improvement |
 |--------|------------|-------------|-------------|
 | **Training Stability** | Occasional crashes from exploding gradients | Stable training with gradient clipping | ✅ Eliminated divergence |
 | **Convergence Speed** | Slow, requires many epochs | Faster with LR scheduling | ✅ Adaptive learning rate |
@@ -478,7 +434,7 @@ These features work together synergistically:
 | **GPU Utilization** | 20-30% (waiting for data) | 70-90% (actually training) | ✅ Much better compute usage |
 | **Training Time** | Fixed epochs, often wasteful | Early stopping when optimal | ✅ Saves unnecessary compute |
 | **Monitoring** | Only accuracy tracked | Full metrics + inference timing | ✅ Complete visibility |
-| **Batch Size** | Limited by memory (e.g., 2) | Effectively 4x larger (e.g., 8) | ✅ More stable gradients |
+| **Batch Size** | Limited by memory (e.g., 2) | Effectively 4x larger (e.g., 24) | ✅ More stable gradients |
 | **Robustness** | Sensitive to hyperparameters | Regularized, adaptive | ✅ More reliable training |
 | **Platform Support** | Local machine only | Windows & Google Colab | ✅ Flexible deployment |
 | **Storage Scalability** | Requires full dataset storage | LRU cache with auto-detection | ✅ Auto-fills available space |
@@ -507,14 +463,14 @@ py -m pip install opencv-python pandas numpy scikit-learn tqdm pillow
 Key hyperparameters for the features:
 
 ```python
-# Batch Size (reduced from 5 to 2 for larger dataset)
-BATCH = 2
+# Batch Size
+BATCH = 6
 
 # Gradient Accumulation
-ACCUMULATION_STEPS = 4  # Effective batch = BATCH * ACCUMULATION_STEPS = 8
+ACCUMULATION_STEPS = 4  # Effective batch = BATCH * ACCUMULATION_STEPS = 24
 
 # Early Stopping
-EARLY_STOP_PATIENCE = 2  # Epochs without improvement before stopping
+EARLY_STOP_PATIENCE = 5  # Epochs without improvement before stopping
 MIN_DELTA = 0.01  # Minimum improvement threshold (0.01%)
 
 # Gradient Clipping
@@ -531,12 +487,7 @@ scheduler = ReduceLROnPlateau(
 # Regularization
 dropout_rate = 0.5  # 50% dropout in classification head
 
-# Frame Caching (Legacy - static caching)
-CACHE_DIR = r'C:\...\frame_cache'  # Directory for cached frames
-# Run preprocessing once before training:
-# preprocess_and_cache_videos(VIDEO_DIR, CACHE_DIR, preprocessing_transforms)
-
-# Dynamic Cache Management v3 (with auto-detection)
+# Dynamic Cache Management (LRU with auto-detection)
 RESERVE_GB = 10.0  # Keep this much free space on disk
 
 cache_manager = CacheManager(
@@ -570,7 +521,7 @@ The tester incorporates memory management and inference tracking:
 
 ## Conclusion
 
-Prototype 5 represents the optimal configuration for ConvLSTM-based Assistive Navigation Prediction. The **9 integrated features** address critical issues in training stability, memory efficiency, storage constraints, data loading bottlenecks, generalization, and monitoring.
+Prototype 7 represents the optimal configuration for ConvLSTM-based Assistive Navigation Prediction. The **8 integrated features** address critical issues in training stability, memory efficiency, storage constraints, data loading bottlenecks, generalization, and monitoring.
 
 **Key Takeaway:** Each feature addresses a specific weakness in the base model, and their combination creates a robust, efficient, and well-monitored training pipeline suitable for real-world video classification applications. The addition of dynamic cache management enables training on datasets that exceed available storage.
 
@@ -578,5 +529,5 @@ Prototype 5 represents the optimal configuration for ConvLSTM-based Assistive Na
 
 ---
 
-*This document was created for Prototype 5 of the ConvLSTM-based Assistive Navigation Prediction system.*  
+*This document was created for Prototype 7 of the ConvLSTM-based Assistive Navigation Prediction system.*  
 *Last Updated: February 17, 2026*

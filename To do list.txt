@@ -30,6 +30,7 @@ Eric Finished List:
 - Video preprocessing: Pre-extract and cache frames to disk
 - Dynamic Cache Manager with LRU Eviction
 - Documentation chene
+- .yaml
 
 Eric Implemented but Unsure List
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
