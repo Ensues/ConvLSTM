@@ -32,3 +32,5 @@ Eric Finished List:
 Eric Implemented but Unsure List
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
 - Batch normalization: Add after ConvLSTM layers for training stability - I did but it gave worse results, further discussed in the proto 2 readme 
+# Pa reimplement if tingin mo need Hannah
+# Sa batch normalization it made accuracy worse, may discussion sa proto 2 readme rin to help you decide
