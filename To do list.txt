@@ -7,6 +7,7 @@ Big Projects (High Impact but Time-Intensive):
 - TorchScript compilation: torch.jit.script() for faster inference - Like ONNX but it appears to apparently improve inference speed so could be nice to have
 - ONNX export: Run on optimized runtime - Unsure if needed, ngl parang unnecessary wambo jumbo but could help maybe
 - Choose either TorchScript compilation, ONNX export, or to not do this at all
+- I'm also unsure if this can apply to mobile or not
 
 Nice-to-Have:
 - Resume training: Save/load optimizer state and epoch number 
