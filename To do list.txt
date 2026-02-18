@@ -15,8 +15,11 @@ Nice-to-Have:
 
 Will come back to maybe:
 - Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
+
+Wag muna, pag may premium nlng:
 - Increase workers - failed due windows, free tier colab can't handle current model with this
 - Persistent workers - failed due windows, free tier colab can't handle current model with this
+- Pin memory - A specialized, non-pageable memory area in RAM that prevents the Operating System (OS) from swapping that data to disk
 
 Eric Finished List:
 - Gradient clipping: Prevent exploding gradients
@@ -30,7 +33,7 @@ Eric Finished List:
 - Dynamic Cache Manager with LRU Eviction - Adapting caching logic for large scale training
 - Documentation chene
 - .yaml - human-readable data serialization language for config documentation but could also be used in the code
-- Pin memory - A specialized, non-pageable memory area in RAM that prevents the Operating System (OS) from swapping that data to disk
+
 
 Eric Implemented but Unsure List
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
