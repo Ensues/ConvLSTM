@@ -1,0 +1,34 @@
+PHASE 1: MAKE MODEL SMALLER (MUST DO FIRST)
+-------------------------------------------
+[ ] Add GlobalAveragePooling layer to model - Needs more research
+    - Compresses 524,288 numbers → 32 numbers
+    - Reduces size: 7.4 MB → 1.5 MB
+
+[ ] Reduce size - Super unsure how
+    - Keep existing ConvLSTM layers frozen
+    - Reduce layers
+    - Decrease layer size
+
+[ ] Test accuracy retention - We need this
+    - Target: within 2-5% of original accuracy
+
+
+PHASE 2: CONVERT TO PHONE FORMAT
+---------------------------------
+[ ] Export to ONNX format - Seems promising
+    - Creates .onnx file (universal format)
+
+[ ] Convert to TensorFlow Lite - Seems promising 2
+    - Creates .tflite file for Android
+
+[ ] Apply INT8 quantization - Needs more research
+    - Compresses to ~2 MB
+    - Speeds up inference on phones
+
+
+PHASE 3: BUILD ANDROID APP
+---------------------------
+[ ] Create video preprocessing module - Need
+    - Extract 30 frames at 10 FPS
+    - Resize frames to 128×128 pixels
+    - Convert to model input format
