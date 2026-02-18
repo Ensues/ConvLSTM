@@ -43,7 +43,7 @@ DEFERRED (WAITING FOR RESOURCES):
 ----------------------------------
 [ ] Mixed precision training
     - Use torch.cuda.amp for faster training
-    - Requires GPU (not available currently)
+    - Requires GPU (not available when created at Feb 14 whichever prototype that was)
 
 [ ] Increase DataLoader workers
     - Failed on Windows
