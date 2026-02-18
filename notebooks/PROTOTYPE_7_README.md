@@ -1,7 +1,7 @@
 # Prototype 7 - Enhanced ConvLSTM Model Documentation
 
 ## Overview
-Prototype 7 is the optimized version of the ConvLSTM model for Assistive Navigation Prediction. This version incorporates **8 critical improvements** that address training stability, memory efficiency, storage constraints, overfitting, data loading bottlenecks, and performance monitoring issues. 
+Prototype 7 is the optimized version of the ConvLSTM model for Assistive Navigation Prediction. This version incorporates **9 critical improvements** that address training stability, memory efficiency, storage constraints, overfitting, data loading bottlenecks, performance monitoring, and experiment tracking. 
 
 ---
 
@@ -401,6 +401,125 @@ full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, cache_manager=cache_manager
 
 ---
 
+### 9. TensorBoard Logging
+**What it is:** A comprehensive experiment tracking system that logs training metrics, hyperparameters, and performance characteristics to TensorBoard for interactive visualization and comparison.
+
+**How it's implemented:**
+```python
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+
+# Initialize TensorBoard writer with timestamped run name
+run_name = f"convlstm_proto7_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, run_name))
+
+# Log hyperparameters as text
+hparams_text = f"""
+**Hyperparameters:**
+- Batch Size: {BATCH}
+- Accumulation Steps: {ACCUMULATION_STEPS} (Effective: {BATCH * ACCUMULATION_STEPS})
+- Learning Rate: {LEARNING_RATE}
+- Model Hidden Dims: {CONFIG.hidden_dim}
+- Dropout Rate: {CONFIG.dropout_rate}
+"""
+writer.add_text("Hyperparameters", hparams_text, 0)
+
+# During training loop - log multiple metrics per epoch
+for epoch in range(NUM_EPOCHS):
+    # ... training code ...
+    
+    # Log loss curves for both train and validation
+    writer.add_scalars('Loss', {
+        'Train': train_loss,
+        'Validation': val_loss_avg
+    }, epoch)
+    
+    # Log accuracy curves
+    writer.add_scalars('Accuracy', {
+        'Train': train_acc,
+        'Validation': val_acc
+    }, epoch)
+    
+    # Log learning rate (tracks scheduler behavior)
+    writer.add_scalar('Learning_Rate', current_lr, epoch)
+    
+    # Log gradient norm (monitors training stability)
+    writer.add_scalar('Gradient_Norm', avg_grad_norm, epoch)
+    
+    # Log inference performance metrics
+    writer.add_scalar('Inference/Latency_ms', avg_latency_ms, epoch)
+    writer.add_scalar('Inference/Throughput_batches_per_sec', val_throughput, epoch)
+
+# Log final best accuracy
+writer.add_scalar('Best_Validation_Accuracy', best_acc, NUM_EPOCHS)
+
+# Close writer when training completes
+writer.close()
+```
+
+**Metrics Logged:**
+
+| Category | Metric | Purpose |
+|----------|--------|----------|
+| **Loss** | Train Loss | Monitor training convergence |
+| | Validation Loss | Detect overfitting early |
+| **Accuracy** | Train Accuracy | Track learning progress |
+| | Validation Accuracy | Measure generalization |
+| **Optimization** | Learning Rate | Visualize scheduler adjustments |
+| | Gradient Norm | Monitor training stability |
+| **Inference** | Latency (ms) | Measure prediction speed |
+| | Throughput (batches/sec) | Track processing efficiency |
+| **Summary** | Best Val Accuracy | Record peak performance |
+
+**Why it helps:**
+- **Problem solved:** Without structured logging, training progress is ephemeral. Comparing experiments, identifying issues, and understanding model behavior requires manually tracking metrics in notebooks or spreadsheets, which is error-prone and time-consuming.
+- **Impact:**
+  - **Interactive visualization:** Real-time graphs of all metrics in a web interface
+  - **Experiment comparison:** Overlay multiple runs to compare hyperparameters
+  - **Early issue detection:** Spot divergence, overfitting, or learning rate problems immediately
+  - **Reproducibility:** All hyperparameters logged with results for scientific rigor
+  - **Collaboration:** Share results via TensorBoard files or screenshots
+  - **Post-training analysis:** Revisit any training run any time later with full context
+  - **Performance tracking:** Monitor inference speed alongside accuracy
+  - **LR scheduler insights:** Visualize when and how learning rate adjusts
+- **Automatic organization:** Each run gets a unique timestamped directory, preventing overwrites
+- **Low overhead:** Logging adds <1% computational overhead
+
+**How to use:**
+```bash
+# Start TensorBoard server (in terminal/command prompt)
+tensorboard --logdir=runs
+
+# Open in browser
+# Navigate to: http://localhost:6006
+```
+
+**TensorBoard Interface:**
+- **Scalars Tab:** Line charts for all logged metrics (loss, accuracy, LR, etc.)
+- **Text Tab:** Hyperparameter configuration for each run
+- **Time Series:** Compare multiple training runs side-by-side
+- **Smoothing:** Adjust slider to smooth noisy curves
+- **Download:** Export charts as SVG/PNG for papers/presentations
+
+**Workflow Example:**
+```python
+# Training run automatically creates: runs/convlstm_proto7_20260218_143022/
+# Contains:
+#   - events.out.tfevents.xxx  (TensorBoard log file)
+#   - All scalar metrics
+#   - Hyperparameter text
+
+# View results:
+# 1. Open terminal
+# 2. Run: tensorboard --logdir=runs
+# 3. Open: http://localhost:6006
+# 4. Compare multiple runs using checkboxes
+```
+
+**Comparison to base model:** The base model only printed metrics to console during training, with no persistence or visualization. Analyzing training behavior required manual inspection of printed output or ad-hoc matplotlib plots. TensorBoard provides professional-grade experiment tracking with zero manual effort.
+
+---
+
 ## Feature Synergy
 
 These features work together synergistically:
@@ -418,6 +537,8 @@ These features work together synergistically:
 6. **LRU Cache + Memory Management:** Cached frames load instantly, while memory management ensures the cache doesn't cause memory issues. Together they enable much faster iteration cycles.
 
 7. **LRU Cache + Gradient Accumulation:** Fast data loading eliminates the I/O bottleneck, allowing gradient accumulation to fully utilize GPU compute without waiting for data.
+
+8. **TensorBoard + All Features:** TensorBoard visualizes the impact of every feature—gradient norms show clipping effectiveness, learning rate curves reveal scheduler behavior, loss curves demonstrate regularization effects, and inference metrics track the speed benefits of caching.
 
 ---
 
@@ -441,6 +562,9 @@ These features work together synergistically:
 | **Cache Management** | O(n) size checks + O(n) LRU | O(1) incremental + OrderedDict | ✅ 100-1000x faster cache ops |
 | **Cache Configuration** | Manual size calculation | Auto-detect + 10GB reserve | ✅ Zero configuration needed |
 | **First Epoch Speed** | Cold cache (slow) | Warm cache pre-filling | ✅ 100% cache hits possible |
+| **Experiment Tracking** | Console output only | TensorBoard logging | ✅ Interactive visualization |
+| **Training Analysis** | Manual inspection | Metric persistence & comparison | ✅ Multi-run comparisons |
+| **Reproducibility** | Lost after training | Hyperparameters logged | ✅ Full experiment context |
 
 ---
 
@@ -457,7 +581,19 @@ These features work together synergistically:
 ```powershell
 # Install required packages
 py -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-py -m pip install opencv-python pandas numpy scikit-learn tqdm pillow
+py -m pip install opencv-python pandas numpy scikit-learn tqdm pillow tensorboard
+```
+
+**Using TensorBoard:**
+```bash
+# Start TensorBoard server (automatically watches for new runs)
+py -m tensorboard.main --logdir=notebooks/runs or %tensorboard --logdir=runs
+
+# Then open in browser: http://localhost:6006
+
+# For Google Colab, use:
+%load_ext tensorboard
+%tensorboard --logdir runs
 ```
 
 Key hyperparameters for the features:
@@ -506,6 +642,14 @@ cache_manager = CacheManager(
 
 # Dataset uses cache_manager for on-demand caching with LRU eviction:
 # full_dataset = MVOVideoDataset(VIDEO_DIR, LABEL_DIR, cache_manager=cache_manager)
+
+# TensorBoard Logging
+LOG_DIR = "runs"  # Directory for TensorBoard logs
+
+# Logs are automatically created with timestamped run names:
+# runs/convlstm_proto7_20260218_143022/
+# 
+# View with: py -m tensorboard.main --logdir=notebooks/runs or %tensorboard --logdir=runs"
 ```
 
 ## Testing Enhancements
@@ -521,9 +665,9 @@ The tester incorporates memory management and inference tracking:
 
 ## Conclusion
 
-Prototype 7 represents the optimal configuration for ConvLSTM-based Assistive Navigation Prediction. The **8 integrated features** address critical issues in training stability, memory efficiency, storage constraints, data loading bottlenecks, generalization, and monitoring.
+Prototype 7 represents the optimal configuration for ConvLSTM-based Assistive Navigation Prediction. The **9 integrated features** address critical issues in training stability, memory efficiency, storage constraints, data loading bottlenecks, generalization, monitoring, and experiment tracking.
 
-**Key Takeaway:** Each feature addresses a specific weakness in the base model, and their combination creates a robust, efficient, and well-monitored training pipeline suitable for real-world video classification applications. The addition of dynamic cache management enables training on datasets that exceed available storage.
+**Key Takeaway:** Each feature addresses a specific weakness in the base model, and their combination creates a robust, efficient, and well-monitored training pipeline suitable for real-world video classification applications. The addition of dynamic cache management enables training on datasets that exceed available storage, while TensorBoard logging provides comprehensive experiment tracking and visualization.
 
 **Cross-Platform:** The entire pipeline works seamlessly on both local Windows machines and Google Colab, providing flexibility for different computational resources and workflows.
 
