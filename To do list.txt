@@ -15,8 +15,8 @@ Nice-to-Have:
 
 Will come back to maybe:
 - Mixed precision training: Use torch.cuda.amp for faster training - needs GPU, we have none right now, wag na muna
-- Increase workers - failed due windows, did not try on colab
-- Persistent workers - failed due windows, did not try on colab
+- Increase workers - failed due windows, free tier colab can't handle current model with this
+- Persistent workers - failed due windows, free tier colab can't handle current model with this
 
 Eric Finished List:
 - Gradient clipping: Prevent exploding gradients
@@ -27,10 +27,10 @@ Eric Finished List:
 - Delete intermediate tensors: Use del and clear unnecessary variables
 - Gradient accumulation: Simulate larger batches with less memory
 - Video preprocessing: Pre-extract and cache frames to disk
-- Dynamic Cache Manager with LRU Eviction
-- Pin memory
+- Dynamic Cache Manager with LRU Eviction - Adapting caching logic for large scale training
 - Documentation chene
-- .yaml
+- .yaml - human-readable data serialization language for config documentation but could also be used in the code
+- Pin memory - A specialized, non-pageable memory area in RAM that prevents the Operating System (OS) from swapping that data to disk
 
 Eric Implemented but Unsure List
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 3
