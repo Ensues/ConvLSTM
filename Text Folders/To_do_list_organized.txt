@@ -32,10 +32,10 @@ BIG PROJECTS (HIGH IMPACT, TIME-INTENSIVE):
 
 NICE-TO-HAVE:
 -------------
-[ ] Resume training functionality
+[✓] Resume training functionality
     - Save/load optimizer state and epoch number
 
-[ ] Extended checkpointing
+[✓] Extended checkpointing
     - Save model every N epochs (not just best)
 
 
