@@ -29,6 +29,8 @@ Eric Finished List:
 - Documentation chene
 - .yaml - human-readable data serialization language for config documentation but could also be used in the code
 - Tensorboard logging: Track loss curves, accuracy, learning rate - Unsure if needed, located at proto 
+- Researched model android deployment methodologies
+- Studied model down scaling
 
 Bad Features:
 - Batch normalization: Add after ConvLSTM layers for training stability - I did but it gave worse results, further discussed in the proto 2 readme 
