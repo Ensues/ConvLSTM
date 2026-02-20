@@ -1,6 +1,6 @@
 # 🚗 ConvLSTM Turn Prediction Model
 
-A deep learning pipeline for asisistive navigation that predicts maneuvers from video sequences using a ConvLSTM architecture. This model takes 3-second video clips and outputs turn predictions (Front, Left, Right) with user intent integration.
+A deep learning pipeline for assistive navigation that predicts maneuvers from video sequences using a ConvLSTM architecture. This model takes 3-second video clips and outputs turn predictions (Front, Left, Right) with user intent integration.
 
 ## 📋 Table of Contents
 - [Project Overview](#project-overview)
@@ -23,20 +23,27 @@ This repository implements a Convolutional LSTM network for real-time user maneu
 ### Key Features
 - **Temporal Understanding**: LSTM cells capture motion patterns across time
 - **Spatial Feature Extraction**: Convolutional layers detect road features
-- **Intent Integration**: 3-channel driver intent signal 
-- **Class Imbalance Handling**: Weighted loss function for better generalization
+- **Intent Integration**: 3-channel driver intent signal
+- **Dynamic Cache Management**: LRU-based caching with auto-detection and warm caching
+- **Memory Efficient Training**: Gradient accumulation and mixed precision training
+- **Class Imbalance Handling**: Weighted loss function with automatic class weight calculation
+- **Advanced Optimization**: Early stopping, learning rate scheduling, and gradient clipping
 
 ## 📂 Project Structure
 
 ```text
 ConvLSTM/
 ├── models/
+│   ├── __init__.py
 │   └── conv_lstm_classifier.py     # Neural network architecture
 │
 ├── notebooks/                      # Development & experimentation
-│   ├── prototype_1.ipynb           # Intent-enabled version (6 channels)
-│   └── prototype_2.ipynb           # Baseline version (3 channels)
+│   ├── prototype_1.ipynb           # Initial implementation
+│   ├── prototype_2.ipynb           # Baseline version (3 channels)
+│   ├── prototype_3-7.ipynb         # Progressive iterations
+│   └── prototype_8.ipynb           # Current version ⭐
 │
+├── cache_manager.py                # Dynamic LRU cache management
 ├── dataset.py                      # PyTorch Dataset implementation
 ├── utils.py                        # Configuration & hyperparameters
 ├── train.py                        # Training script
@@ -56,7 +63,8 @@ ConvLSTM/
 ```bash
 pip install torch torchvision torchaudio
 pip install opencv-python pandas numpy scikit-learn scipy
-pip install tqdm pillow jupyter
+pip install tqdm pillow jupyter tensorboard
+pip install split-folders  # For dataset splitting
 ```
 
 ## 📊 Dataset Preparation
@@ -102,17 +110,32 @@ LABEL_DIR = r'C:\path\to\your\labels'
 |-----------|-------|-------------|
 | `HEIGHT` | 128 | Frame height |
 | `WIDTH` | 128 | Frame width |
-| `CHANNELS` | 6 (with intent) / 3 (baseline) | Input channels |
+| `CHANNELS` | 6 | Input channels (3 RGB + 3 intent) |
 | `FPS` | 10 | Frames per second |
 | `DURATION` | 3 | Clip duration (seconds) |
 | `SEQ_LEN` | 30 | Total frames per sequence |
 
 ### Training Configuration (train.py)
 ```python
-BATCH = 5                           # Batch size
+BATCH_SIZE = 2                      # Physical batch size
+ACCUMULATION_STEPS = 4              # Gradient accumulation steps
+                                    # Effective batch = 2 × 4 = 8
 NUM_EPOCHS = 20                     # Training epochs
 LEARNING_RATE = 1e-4                # Adam optimizer learning rate
 SEED = 8                            # Random seed for reproducibility
+
+# Regularization
+DROPOUT_RATE = 0.5                  # Dropout for overfitting prevention
+MAX_GRAD_NORM = 1.0                 # Gradient clipping threshold
+
+# Early Stopping
+EARLY_STOP_PATIENCE = 5             # Epochs without improvement before stopping
+MIN_DELTA = 0.01                    # Minimum improvement threshold (%)
+
+# Learning Rate Scheduler
+LR_FACTOR = 0.5                     # LR reduction factor
+LR_PATIENCE = 3                     # Epochs before LR reduction
+LR_MIN = 1e-7                       # Minimum learning rate
 ```
 
 ### Model Parameters
@@ -122,7 +145,17 @@ PARAMS = {
     'hidden_dim': [64, 32],         # LSTM hidden dimensions per layer
     'kernel_size': (3, 3),          # Convolutional kernel size
     'num_layers': 2,                # Number of LSTM layers
-    'num_classes': 3                # Front, Left, Right
+    'num_classes': 3,               # Front, Left, Right
+    'dropout_rate': 0.5             # Dropout rate
+}
+```
+
+### Cache Configuration
+```python
+CACHE_CONFIG = {
+    'reserve_gb': 10.0,             # GB to keep free (auto-detect)
+    'eviction_check_interval': 10,  # Check cache size every N misses
+    'eviction_buffer_percent': 0.10 # Extra space to free (10%)
 }
 ```
 
@@ -134,10 +167,20 @@ Trains the model using 60/20/20 train/validation/test split:
 python train.py
 ```
 
+**Features:**
+- **Automatic Dataset Splitting**: Uses `splitfolders` for 60/20/20 split
+- **Dynamic Cache Management**: Auto-detects storage and pre-caches videos
+- **Mixed Precision Training**: Reduces memory usage and speeds up training
+- **Gradient Accumulation**: Effective batch size of 8 (2 × 4)
+- **Class Balancing**: Automatic computation of class weights
+- **Early Stopping**: Prevents overfitting with patience-based stopping
+- **TensorBoard Logging**: Real-time training visualization
+
 **Output:**
 - `best_convlstm.pth`: Best model based on validation accuracy
-- Console logs: Training loss, accuracy per epoch
-- Intent positions: `val_intent_positions.npy` (generated once)
+- `runs/`: TensorBoard logs for training visualization
+- Console logs: Loss, accuracy, class weights per epoch
+- Intent positions: `val_intent_positions.npy` and `test_intent_positions.npy`
 
 ### 2. Evaluation
 Tests the trained model on the held-out test set:
@@ -151,15 +194,21 @@ python tester.py
 - Latency measurements (avg ms per clip, FPS)
 - `test_results.csv`: Detailed predictions
 
-### 3. Notebooks (Optional)
+### 3. Visualizing Training (Optional)
+View training progress with TensorBoard:
+```bash
+tensorboard --logdir=runs
+```
+
+### 4. Notebooks (Optional)
 For experimentation and visualization:
 ```bash
-jupyter notebook notebooks/prototype_1.ipynb
+jupyter notebook notebooks/prototype_8.ipynb
 ```
 
 **Notebook Variants:**
-- `prototype_1.ipynb`: Full implementation with intent integration
-- `prototype_2.ipynb`: Baseline model without intent
+- `prototype_8.ipynb`: **Current version** with all optimizations ⭐
+- `prototype_1-7.ipynb`: Previous iterations and experiments
 
 ## 🧠 Model Architecture
 
@@ -198,9 +247,50 @@ Output (3 classes)
 - Flattens final hidden state
 - Linear layer maps to 3 class logits
 
-### With Intent Integration
+### Key Architecture Components
 
-Hannahhh add ka here
+#### Dynamic Cache Manager (New in Prototype 8)
+Intelligent caching system for efficient video loading:
+- **Auto-Detection**: Automatically detects available storage
+- **Warm Caching**: Pre-caches videos before training starts
+- **LRU Eviction**: Removes least recently used files when cache is full
+- **O(1) Operations**: Constant-time cache lookups and updates
+
+#### Training Optimizations
+**Gradient Accumulation**:
+```python
+# Accumulate gradients over 4 steps (effective batch = 2 × 4 = 8)
+for batch_idx, (data, targets) in enumerate(loader):
+    loss = criterion(outputs, targets) / accumulation_steps
+    loss.backward()
+    
+    if (batch_idx + 1) % accumulation_steps == 0:
+        optimizer.step()
+        optimizer.zero_grad()
+```
+
+**Mixed Precision Training**:
+```python
+scaler = GradScaler()
+with torch.autocast(device_type="cuda"):
+    outputs = model(inputs)
+    loss = criterion(outputs, targets)
+scaler.scale(loss).backward()
+```
+
+**Weighted Loss Function**:
+```python
+# Automatically calculated from training data
+class_weights = compute_class_weights(train_labels)
+criterion = nn.CrossEntropyLoss(weight=class_weights)
+```
+
+#### Intent Integration
+The model accepts 6-channel input:
+- **Channels 0-2**: RGB video frames
+- **Channels 3-5**: Intent signals (Front, Left, Right)
+
+Intent positions are determined based on user input patterns and saved as `.npy` files for reproducibility.
 
 ## 📈 Results
 
@@ -240,13 +330,27 @@ WARNING: Label file not found for video [NAME]
 → Ensure every `.mp4` has a matching `_labels.csv` or `_labels_A.csv`
 
 **3. CUDA Out of Memory**
-→ Reduce `BATCH` size in `train.py`
+→ Reduce `BATCH_SIZE` in `train.py` or increase `ACCUMULATION_STEPS`
+→ Clear cache with `torch.cuda.empty_cache()`
 
 **4. Model File Not Found**
 ```
 Model file not found at best_convlstm.pth
 ```
 → Run `train.py` first to generate the model
+
+**5. Cache Size Issues**
+```
+⚠ Cache size exceeded
+```
+→ Adjust `reserve_gb` in cache configuration
+→ Cache manager will automatically evict old files
+
+**6. Split-folders Not Found**
+```
+ModuleNotFoundError: No module named 'split-folders'
+```
+→ Install with `pip install split-folders`
 
 ## 🔮 Future Work
 
@@ -255,6 +359,30 @@ Model file not found at best_convlstm.pth
 - [ ] Add online learning capabilities for continuous adaptation
 - [ ] Optimize for edge deployment (quantization, pruning)
 - [ ] Multi-modal fusion (LiDAR, GPS, IMU)
+- [ ] Distributed training for larger datasets
+- [ ] Real-time inference optimization
+
+## 📝 Version History
+
+### Prototype 8 (Current) ⭐
+- Dynamic cache manager with LRU eviction and auto-detection
+- Gradient accumulation for memory-efficient training
+- Mixed precision training with torch.amp
+- Weighted loss function with automatic class weight calculation
+- Early stopping and learning rate scheduling
+- Gradient clipping for stable training
+- Centralized configuration management
+- TensorBoard logging
+- splitfolders integration for dataset splitting
+
+### Prototype 7
+- Enhanced training pipeline
+- Improved data loading
+
+### Prototype 1-6
+- Progressive development and experimentation
+- Intent integration implementation
+- Model architecture refinement
 
 ---
 
