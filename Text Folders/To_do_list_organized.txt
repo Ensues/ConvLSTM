@@ -15,7 +15,7 @@ MEDIUM EFFORT, HIGH REWARD:
 
 BIG PROJECTS (HIGH IMPACT, TIME-INTENSIVE):
 -------------------------------------------
-[ ] TorchScript compilation OR ONNX export (choose one)
+[✓] TorchScript compilation OR ONNX export (choose one)
     
     Option A: TorchScript
     - Use torch.jit.script() for faster inference
@@ -41,7 +41,7 @@ NICE-TO-HAVE:
 
 DEFERRED (WAITING FOR RESOURCES):
 ----------------------------------
-[ ] Mixed precision training
+[✓] Mixed precision training
     - Use torch.cuda.amp for faster training
     - Requires GPU (not available when created at Feb 14 whichever prototype that was)
 
