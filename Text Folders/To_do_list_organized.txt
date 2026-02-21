@@ -9,7 +9,7 @@ ACTIVE TASKS - HANNAH
 
 MEDIUM EFFORT, HIGH REWARD:
 ---------------------------
-[ ] Validation metrics per class
+[✓] Validation metrics per class
     - Track precision/recall per class during training
 
 
