@@ -97,7 +97,7 @@ In the file models/conv_lstm_classifier.py, modify the ConvLSTMModel class:
 
 ---
 
-### 1.2 Model Pruning (Optional)
+### 1.2 Model Pruning (Optional)[Not needed now]
 
 **Objective**: Remove redundant connections in ConvLSTM layers
 
@@ -113,7 +113,7 @@ Remove 30% of the least important weights from ConvLSTM layers using L1 unstruct
 
 ---
 
-### 1.3 Knowledge Distillation (Advanced, Optional)
+### 1.3 Knowledge Distillation (Advanced, Optional)[Not needed now]
 
 **Objective**: Train smaller "student" model to mimic larger "teacher"
 
