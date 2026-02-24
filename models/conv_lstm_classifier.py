@@ -3,32 +3,34 @@ import torch.nn as nn
 from typing import List, Tuple, Optional, Any
 
 # ConvLSTM Architecture for Video Direction Classification
+# PROTOTYPE 9 - Mobile-Optimized with Global Average Pooling
 #
 # MODEL REQUIREMENTS:
 # -------------------
-# Input Shape:  [Batch, Seq_Len, Channels, Height, Width]
-#               [B, 30, 3, 128, 128] for this config
+# Input Shape:                      [Batch, Seq_Len, Channels, Height, Width]
+#                                   [B, 20, 6, 128, 128] - 20 frames, 6 channels (RGB + Intent)
 #
 # LAYER STRUCTURE (Config: num_layers=2, hidden_dim=[64, 32]):
 # -------------------
 # Layer 1: ConvLSTMCell
-#   - Input channels:  3 (RGB frames)
-#   - Hidden channels: 64
-#   - Kernel size:     3×3
-#   - Output:          [B, 30, 64, 128, 128]
+#   - Input channels:               6 (RGB + 3 intent channels)
+#   - Hidden channels:              64
+#   - Kernel size:                  3×3
+#   - Output:                       [B, 20, 64, 128, 128]
 #
 # Layer 2: ConvLSTMCell
-#   - Input channels:  64 (from Layer 1)
-#   - Hidden channels: 32
-#   - Kernel size:     3×3
-#   - Output:          [B, 30, 32, 128, 128]
+#   - Input channels:               64 (from Layer 1)
+#   - Hidden channels:              32
+#   - Kernel size:                  3×3
+#   - Output:                       [B, 20, 32, 128, 128]
 #
-# Classification Head:
-#   - Takes last time step: [B, 32, 128, 128]
-#   - Flattens to:          [B, 524288]  (32 × 128 × 128)
+# Classification Head (Mobile-Optimized):
+#   - Takes last time step:         [B, 32, 128, 128]
+#   - Global Average Pool:          [B, 32, 1, 1]
+#   - Flatten:                      [B, 32]
 #   - Dropout (0.5)
-#   - Linear layer:         [524288 → 3]
-#   - Output logits:        [B, 3] (Front, Left, Right)
+#   - Linear layer:                 [32 → 3]
+#   - Output logits:                [B, 3] (Front, Left, Right)
 #
 # KERNEL OPERATIONS:
 # -------------------
@@ -37,7 +39,7 @@ from typing import List, Tuple, Optional, Any
 #   - 4 parallel convolutions for LSTM gates: [input, forget, output, cell]
 #   - Total parameters per cell: (input_dim + hidden_dim) × 4 × hidden_dim × 3 × 3
 #
-# Example Layer 1: (3 + 64) × 4 × 64 × 9 = 154,368 parameters
+# Example Layer 1: (6 + 64) × 4 × 64 × 9 = 161,280 parameters
 # Example Layer 2: (64 + 32) × 4 × 32 × 9 = 110,592 parameters
 
 class ConvLSTMCell(nn.Module):
@@ -332,50 +334,54 @@ class ConvLSTM(nn.Module):
 class ConvLSTMModel(nn.Module):
     """
     ConvLSTM classifier - processes video and outputs class prediction.
+    PROTOTYPE 9 - Mobile-Optimized with Global Average Pooling
 
     FULL PIPELINE:
     --------------
-    Input Video: [B, 30, 3, 128, 128]
+    Input Video: [B, 20, 6, 128, 128]
         ↓
     ConvLSTM (2 layers):
-        Layer 1: [B, 30, 3, 128, 128] → [B, 30, 64, 128, 128]
-        Layer 2: [B, 30, 64, 128, 128] → [B, 30, 32, 128, 128]
+        Layer 1: [B, 20, 6, 128, 128] → [B, 20, 64, 128, 128]
+        Layer 2: [B, 20, 64, 128, 128] → [B, 20, 32, 128, 128]
         ↓
-    Take Last Time Step: [B, 30, 32, 128, 128] → [B, 32, 128, 128]
+    Take Last Time Step: [B, 20, 32, 128, 128] → [B, 32, 128, 128]
         ↓
-    Flatten: [B, 32, 128, 128] → [B, 524288]
+    Global Average Pooling: [B, 32, 128, 128] → [B, 32, 1, 1]
         ↓
-    Dropout(0.5): [B, 524288] → [B, 524288]
+    Flatten: [B, 32, 1, 1] → [B, 32]
         ↓
-    Linear: [B, 524288] → [B, 3]
+    Dropout(0.5): [B, 32] → [B, 32]
+        ↓
+    Linear: [B, 32] → [B, 3]
         ↓
     Output Logits: [B, 3] (Front=0, Left=1, Right=2)
 
-    PARAMETERS:
+    PARAMETERS (Optimized for Mobile):
     -----------
-    ConvLSTM layers: ~265K parameters
-    Linear layer:    524288 × 3 = 1,572,864 parameters
-    Total:           ~1.84M parameters
+    ConvLSTM layers: ~272K parameters
+    Linear layer:    32 × 3 = 96 parameters
+    Total:           ~272K parameters (-85% from original)
+    Model size:      ~1.5 MB (vs 7.4 MB without GAP)
 
     Args:
-        input_dim: Input channels (3 for RGB)
+        input_dim: Input channels (6 for RGB + Intent)
         hidden_dim: Hidden dims per layer [64, 32]
         kernel_size: Conv kernel size (3, 3)
         num_layers: Number of ConvLSTM layers (2)
-        height: Frame height (128)
-        width: Frame width (128)
+        height: Frame height (128, kept for compatibility)
+        width: Frame width (128, kept for compatibility)
         num_classes: Output classes (3)
         dropout_rate: Dropout probability (0.5)
     """
 
     def __init__(
         self,
-        input_dim: int,               # 3 (RGB)
+        input_dim: int,               # 6 (RGB + Intent)
         hidden_dim: List[int],        # [64, 32]
         kernel_size: Tuple[int, int], # (3, 3)
         num_layers: int,              # 2
-        height: int,                  # 128
-        width: int,                   # 128
+        height: int,                  # 128 (kept for compatibility, not used with GAP)
+        width: int,                   # 128 (kept for compatibility, not used with GAP)
         batch_first: bool = True,
         bias: bool = True,
         return_all_layers: bool = False,
@@ -391,17 +397,24 @@ class ConvLSTMModel(nn.Module):
             return_all_layers=return_all_layers
         )
 
+        # Global Average Pooling (Mobile Optimization)
+        # Reduces spatial dimensions [B, C, H, W] → [B, C, 1, 1]
+        # Eliminates 99.99% of FC layer parameters (1,572,864 → 96)
+        # Model size reduction: ~7.4 MB → ~1.5 MB (-80%)
+        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+
         # Dropout for regularization (prevents overfitting)
         self.dropout = nn.Dropout(p=dropout_rate)
 
-        # Classification head: maps flattened features to class logits
-        # Input size: hidden_dim[-1] × height × width = 32 × 128 × 128 = 524,288
+        # Classification head: maps pooled features to class logits
+        # Input size: hidden_dim[-1] = 32 (after GAP reduces [32, 128, 128] to [32, 1, 1])
         # Output size: num_classes = 3
-        self.linear = nn.Linear(hidden_dim[-1] * height * width, num_classes)
+        # Parameters: 32 × 3 + 3 = 99 (vs 1,572,867 in original model)
+        self.linear = nn.Linear(hidden_dim[-1], num_classes)
 
     def forward(
         self,
-        input_tensor: torch.Tensor,  # [B, 30, 3, 128, 128]
+        input_tensor: torch.Tensor,  # [B, 20, 6, 128, 128]
         hidden_state: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None
     ) -> torch.Tensor:
         """
@@ -410,33 +423,42 @@ class ConvLSTMModel(nn.Module):
         Steps:
         ------
         1. Process video through ConvLSTM layers
-           [B, 30, 3, 128, 128] → [B, 30, 32, 128, 128]
+           [B, 20, 6, 128, 128] → [B, 20, 32, 128, 128]
 
-        2. Take last time step (frame 30 contains all temporal info)
-           [B, 30, 32, 128, 128] → [B, 32, 128, 128]
+        2. Take last time step (frame 20 contains all temporal info)
+           [B, 20, 32, 128, 128] → [B, 32, 128, 128]
 
-        3. Flatten spatial dimensions
-           [B, 32, 128, 128] → [B, 524288]
+        3. Apply Global Average Pooling (Mobile Optimization)
+           [B, 32, 128, 128] → [B, 32, 1, 1]
+           Aggregates spatial information into channel-wise features
 
-        4. Apply dropout (training only)
-           [B, 524288] → [B, 524288]
+        4. Flatten pooled features
+           [B, 32, 1, 1] → [B, 32]
 
-        5. Linear classification layer
-           [B, 524288] → [B, 3]
+        5. Apply dropout (training only)
+           [B, 32] → [B, 32]
+
+        6. Linear classification layer
+           [B, 32] → [B, 3]
 
         Returns:
         --------
         logits: [B, 3] - raw scores for each class (before softmax)
         """
         # Process through ConvLSTM layers
-        x, _ = self.convlstm(input_tensor)  # x is list, x[0] = [B, 30, 32, 128, 128]
+        x, _ = self.convlstm(input_tensor)  # x is list, x[0] = [B, 20, 32, 128, 128]
 
         # Extract last time step (final frame has seen all previous frames)
         last_time_step = x[0][:, -1, :, :, :]  # [B, 32, 128, 128]
 
-        # Flatten spatial dimensions for classification
-        # [B, 32, 128, 128] → [B, 32*128*128] = [B, 524288]
-        flattened = torch.flatten(last_time_step, start_dim=1)
+        # Apply Global Average Pooling to reduce spatial dimensions
+        # [B, 32, 128, 128] → [B, 32, 1, 1]
+        # This aggregates spatial information into channel-wise features
+        pooled = self.global_avg_pool(last_time_step)
+
+        # Flatten pooled features for classification
+        # [B, 32, 1, 1] → [B, 32]
+        flattened = torch.flatten(pooled, start_dim=1)
 
         # Apply dropout (active during training, disabled during eval)
         flattened = self.dropout(flattened)
