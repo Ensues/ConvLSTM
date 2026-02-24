@@ -18,7 +18,7 @@ ANSWER: No. It needs 20 frames TOTAL, sampled at 10 FPS from a 2-second video.
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ KEY PARAMETERS                                                          │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ • Target FPS:        10 frames per second (not camera's native FPS)    │
+│ • Target FPS:        10 frames per second (not camera's native FPS)     │
 │ • Sequence Length:   20 frames total                                    │
 │ • Video Duration:    2 seconds                                          │
 │ • Formula:           10 FPS × 2 seconds = 20 frames                     │
@@ -266,7 +266,7 @@ WITH GAP (Prototype 9 - MOBILE VERSION):
 │                      [1, 32, 128, 128]                                  │
 │ Global Avg Pool:     [1, 32] ← Much smaller.                            │
 │ Fully Connected:     [32, 3]                                            │
-│ Model Size:          ~1.5 MB (80% smaller)                             │
+│ Model Size:          ~1.5 MB (80% smaller)                              │
 └─────────────────────────────────────────────────────────────────────────┘
 
 HOW GAP WORKS:
@@ -387,8 +387,8 @@ FOR MOBILE INFERENCE:
 TRAINING RATIONALE:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Model learns to handle both scenarios:                                  │
-│   1. Video with direction detection (intent present)                   │
-│   2. Video without direction detection (intent = None)                 │
+│   1. Video with direction detection (intent present)                    │
+│   2. Video without direction detection (intent = None)                  │
 │                                                                         │
 │ This makes the model more robust and prevents overfitting.              │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -455,7 +455,7 @@ VALIDATION CHECKLIST:
 │ □ Preprocessor output shape is [20, 6, 128, 128]                        │
 │ □ Pixel values are in range [0, 1], not [0, 255]                        │
 │ □ Color channels are RGB, not BGR                                       │
-│ □ Intent position matches when direction was detected                    │
+│ □ Intent position matches when direction was detected                   │
 │ □ Intent channel has correct values (1.0 for active frames)             │
 │ □ Model input shape is [1, 20, 6, 128, 128] (with batch dimension)      │
 │ □ Model outputs shape [1, 3] (3 class probabilities)                    │
