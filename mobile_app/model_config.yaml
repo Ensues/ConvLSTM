@@ -78,7 +78,7 @@ deployment:
   preprocessing_location: "On-device"       # Preprocess on mobile device
   model_format: "TFLite"                    # .tflite model file
   quantization: "INT8"                      # Recommended: 4x smaller model size
-  intent_position_source: "User input"      # Intent position from turn signal button
+  intent_position_source: "User input"      # Intent position from direction detection
 
 # Version Information
 version:

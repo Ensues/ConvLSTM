@@ -9,6 +9,11 @@ A deep learning pipeline for assistive navigation that predicts maneuvers from v
 - [Dataset Preparation](#dataset-preparation)
 - [Configuration](#configuration)
 - [Usage](#usage)
+  - [Training](#1-training)
+  - [Evaluation](#2-evaluation)
+  - [TensorBoard Visualization](#3-visualizing-training-optional)
+  - [Notebooks](#4-notebooks-optional)
+  - [Mobile Deployment](#5-mobile-deployment-)
 - [Model Architecture](#model-architecture)
 - [Results](#results)
 
@@ -24,6 +29,7 @@ This repository implements a Convolutional LSTM network for real-time user maneu
 - **Temporal Understanding**: LSTM cells capture motion patterns across time
 - **Spatial Feature Extraction**: Convolutional layers detect road features
 - **Intent Integration**: 3-channel driver intent signal
+- **Mobile-Ready**: Complete preprocessing module for Android/Expo deployment with examples
 - **Dynamic Cache Management**: LRU-based caching with auto-detection and warm caching
 - **Memory Efficient Training**: Gradient accumulation and mixed precision training
 - **Class Imbalance Handling**: Weighted loss function with automatic class weight calculation
@@ -36,6 +42,18 @@ ConvLSTM/
 ├── models/
 │   ├── __init__.py
 │   └── conv_lstm_classifier.py     # Neural network architecture
+│
+├── mobile_app/                     # Mobile deployment module ⭐
+│   ├── __init__.py
+│   ├── config.py                   # Mobile configuration
+│   ├── preprocessor.py             # Video preprocessing for mobile
+│   ├── example_recorded_video.py   # Example: pre-recorded videos
+│   ├── example_live_camera.py      # Example: live camera feeds
+│   ├── model_config.yaml           # Model configuration (YAML)
+│   ├── model_config.json           # Model configuration (JSON)
+│   ├── requirements.txt            # Mobile dependencies
+│   ├── FILES_FOR_MOBILE_TEAM.txt   # Deployment guide
+│   └── README.md                   # Mobile API documentation
 │
 ├── notebooks/                      # Development & experimentation
 │   ├── prototype_1.ipynb           # Initial implementation
@@ -209,6 +227,33 @@ jupyter notebook notebooks/prototype_8.ipynb
 **Notebook Variants:**
 - `prototype_8.ipynb`: **Current version** with all optimizations ⭐
 - `prototype_1-7.ipynb`: Previous iterations and experiments
+
+### 5. Mobile Deployment 📱
+Deploy the model on Android devices using Expo/React Native:
+
+**Quick Start:**
+```bash
+cd mobile_app
+pip install -r requirements.txt
+python example_recorded_video.py  # Test with recorded videos
+python example_live_camera.py     # Test with live camera
+```
+
+**Documentation:**
+- [`mobile_app/README.md`](mobile_app/README.md) - Complete API documentation
+- [`mobile_app/FILES_FOR_MOBILE_TEAM.txt`](mobile_app/FILES_FOR_MOBILE_TEAM.txt) - Deployment guide
+- [`example_recorded_video.py`](mobile_app/example_recorded_video.py) - 7 examples for pre-recorded videos
+- [`example_live_camera.py`](mobile_app/example_live_camera.py) - 7 examples for live camera feeds
+
+**Key Features:**
+- ✅ Video file and live camera feed preprocessing
+- ✅ Expo/React Native integration examples
+- ✅ TensorFlow Lite conversion support
+- ✅ Intent tracking and position encoding
+- ✅ Performance monitoring and optimization tips
+
+**Mobile Team Integration:**
+See [`mobile_app/`](mobile_app/) folder for complete preprocessing pipeline, configuration files, and integration examples.
 
 ## 🧠 Model Architecture
 

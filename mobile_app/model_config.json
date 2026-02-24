@@ -88,7 +88,7 @@
     "model_format": "TFLite",
     "quantization": "INT8",
     "intent_position_source": "User input",
-    "_notes": "Intent position should come from user's turn signal button press"
+    "_notes": "Intent position should come from direction detection by model"
   },
   
   "version": {

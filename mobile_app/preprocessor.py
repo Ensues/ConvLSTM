@@ -72,7 +72,7 @@ class VideoPreprocessor:
             video_path: Path to video file
             intent: Direction intent (0: Front, 1: Left, 2: Right, None: no intent)
             intent_position: Frame index where intent starts (defaults to 0 if None)
-                            For mobile apps, always pass explicit position from user's turn signal
+                            For mobile apps, always pass explicit position from direction detection
         
         Returns:
             np.ndarray: Preprocessed video tensor of shape [seq_len, channels, height, width]
@@ -96,7 +96,7 @@ class VideoPreprocessor:
         frame_interval = max(1, int(original_fps / self.fps))
         
         # Use default intent position if not provided
-        # For mobile deployment: always pass explicit intent_position from user's turn signal press
+        # For mobile deployment: always pass explicit intent_position from direction detection
         if intent is not None and intent_position is None:
             intent_position = 0  # Default to start of video (testing/fallback only)
         
@@ -157,7 +157,7 @@ class VideoPreprocessor:
             frames: List of numpy arrays (BGR format)
             intent: Direction intent (0: Front, 1: Left, 2: Right, None: no intent)
             intent_position: Frame index where intent starts (defaults to 0 if None)
-                            For mobile apps, always pass explicit position from user's turn signal
+                            For mobile apps, always pass explicit position from direction detection
         
         Returns:
             np.ndarray: Preprocessed video tensor of shape [seq_len, channels, height, width]
@@ -166,7 +166,7 @@ class VideoPreprocessor:
             raise ValueError(f"Expected {self.seq_len} frames, got {len(frames)}")
         
         # Use default intent position if not provided
-        # For mobile deployment: always pass explicit intent_position from user's turn signal press
+        # For mobile deployment: always pass explicit intent_position from direction detection
         if intent is not None and intent_position is None:
             intent_position = 0  # Default to start of video (testing/fallback only)
         
@@ -288,7 +288,7 @@ def preprocess_for_inference(
         video_path: Path to video file
         intent: Direction intent (0: Front, 1: Left, 2: Right, None: no intent)
         intent_position: Frame index where intent starts (defaults to 0 if None)
-                        For mobile apps, always pass explicit position from user's turn signal
+                        For mobile apps, always pass explicit position from direction detection
     
     Returns:
         np.ndarray: Preprocessed video tensor ready for model inference

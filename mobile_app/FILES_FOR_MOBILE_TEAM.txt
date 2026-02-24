@@ -1,7 +1,7 @@
 ================================================================================
 FILES TO PROVIDE TO MOBILE APP TEAM
 ================================================================================
-Last Updated: February 24, 2026
+Last Updated: February 25, 2026
 Purpose: Mobile deployment of ConvLSTM turn prediction model on Android/Expo
 ================================================================================
 
@@ -22,6 +22,9 @@ REQUIRED FILES
    ✓ config.py                    - Configuration constants (FPS, seq_len, etc.)
    ✓ preprocessor.py              - Main VideoPreprocessor class
    ✓ README.md                    - Complete API documentation and usage guide
+   ✓ example_recorded_video.py    - Example usage for pre-recorded videos (7 examples)
+   ✓ example_live_camera.py       - Example usage for live camera feeds (7 examples)
+   ✓ CONCEPTUAL_NOTES.txt         - Detailed explanations of key concepts (FPS, shapes, etc.)
    ✓ model_config.yaml            - Model configuration (YAML format)
    ✓ model_config.json            - Model configuration (JSON format)
    ✓ requirements.txt             - Python dependencies list
@@ -167,27 +170,34 @@ The mobile team should follow this workflow:
    - Test imports: `from mobile_app import VideoPreprocessor`
    - Verify configuration: Load model_config.yaml or model_config.json
 
-2. TEST PYTORCH MODEL
-   - Load model using example_inference.py
+2. TEST PREPROCESSING WITH EXAMPLES
+   - Run example_recorded_video.py to test video file preprocessing
+   - Run example_live_camera.py to test real-time camera processing
+   - Review Example 4 in example_live_camera.py for mobile app workflow
+   - Verify output shapes and intent encoding
+
+3. TEST PYTORCH MODEL
+   - Load model using examples in example_recorded_video.py (Example 5)
    - Test on sample videos
    - Verify predictions are reasonable
    - Or just test it live
 
-3. CONVERT TO MOBILE FORMAT
+4. CONVERT TO MOBILE FORMAT
    - Export to TensorFlow Lite (.tflite)
    - Apply INT8 quantization for size reduction
    - Test converted model matches PyTorch predictions
    - Measure model size and inference speed
 
-4. INTEGRATE INTO MOBILE APP
+5. INTEGRATE INTO MOBILE APP
    - Implement preprocessing in JavaScript/TypeScript OR
    - Use Python bridge (Chaquopy for Android)
    - Load TFLite model using react-native-tensorflow or TFLite Java API
-   - **IMPORTANT**: Pass intent_position based on when user presses turn signal
+   - **IMPORTANT**: Pass intent_position based on when direction is detected by model
    - Test end-to-end pipeline
 
-5. OPTIMIZE FOR MOBILE
+6. OPTIMIZE FOR MOBILE
    - Apply quantization (INT8)
    - Enable GPU acceleration
    - Optimize preprocessing for real-time performance
    - Test on various Android devices maybe
+   - Reference performance monitoring in example_live_camera.py (Example 5)

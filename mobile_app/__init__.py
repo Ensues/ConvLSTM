@@ -11,7 +11,6 @@ from .config import CONFIG, MobileConfig
 from .preprocessor import VideoPreprocessor, preprocess_for_inference
 
 __version__ = "1.0.0"
-__author__ = "ejans"
 __description__ = "Mobile preprocessing for ConvLSTM turn prediction"
 
 __all__ = [

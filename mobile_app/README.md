@@ -1,6 +1,6 @@
 # 📱 Mobile App Preprocessor
 
-**Version**: 1.0.0  
+**Version**: 1.0.1  
 **Based On**: Prototype 9  
 **Purpose**: Video preprocessing for ConvLSTM turn prediction on Android devices
 
@@ -32,6 +32,9 @@ mobile_app/
 ├── __init__.py                  # Package initialization
 ├── config.py                    # Configuration constants (from Prototype 9)
 ├── preprocessor.py              # Main video preprocessing class
+├── example_recorded_video.py    # Complete examples for pre-recorded videos
+├── example_live_camera.py       # Complete examples for live camera feeds
+├── CONCEPTUAL_NOTES.txt         # Key concepts explained (FPS, shapes, intent, etc.)
 ├── model_config.yaml            # Model configuration (YAML format)
 ├── model_config.json            # Model configuration (JSON format)
 ├── requirements.txt             # Python dependencies
@@ -117,7 +120,7 @@ video_tensor = preprocessor.preprocess_video(
     intent_position=5  # Optional: frame where intent starts
 )
 
-# Output: [20, 6, 128, 128] - Ready for inference!
+# Output: [20, 6, 128, 128] - Ready for inference
 ```
 
 **How it works:**
@@ -152,11 +155,11 @@ camera.release()
 # Process the live frame sequence
 video_tensor = preprocessor.preprocess_frame_sequence(
     frames=frames,  # List of 20 numpy arrays (BGR format)
-    intent=2,  # User's turn signal from app UI
+    intent=2,  # Detected direction from model
     intent_position=None  # Auto-generate or specify
 )
 
-# Output: [20, 6, 128, 128] - Ready for inference!
+# Output: [20, 6, 128, 128] - Ready for inference
 ```
 
 **How it works:**
@@ -185,9 +188,9 @@ video_tensor = preprocessor.preprocess_frame_sequence(
 
 ### Input
 - **Video File**: MP4 or compatible format
-- **Intent** (required for mobile): Direction signal (0=Front, 1=Left, 2=Right)
-- **Intent Position** (required for mobile): Frame index when user pressed turn signal
-  - **IMPORTANT**: For mobile deployment, always specify the exact frame when the user activates the turn signal
+- **Intent** (required for mobile): Direction intent (0=Front, 1=Left, 2=Right)
+- **Intent Position** (required for mobile): Frame index when direction is detected
+  - **IMPORTANT**: For mobile deployment, always specify the exact frame when the model detects the turn direction
   - Default fallback is frame 0, but production apps should track the exact timing
 
 ### Processing Steps
@@ -234,7 +237,7 @@ video_tensor = preprocessor.preprocess_frame_sequence(
 | 2     | Right     | 5             |
 | None  | No intent | All zeros     |
 
-### Intent Signal
+### Intent Detection
 
 ```
 Frame Index:  0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19
@@ -251,8 +254,8 @@ Intent Ch. 5:   0  0  0  0  0  0  0  0  0  0   0  0  0  0  0  0  0  0  0  0  (ze
 ### Intent Position Generation
 
 **For Mobile Apps (Production):**
-- Intent position should be explicitly provided based on when the user activates the turn signal
-- Track the frame index when the turn signal button is pressed
+- Intent position should be explicitly provided based on when the model detects the turn direction
+- Track the frame index when the direction is determined
 - Pass this exact frame index to `intent_position` parameter
 
 **Default Behavior (Testing Only):**
@@ -445,13 +448,13 @@ with open('mobile_app/model_config.yaml', 'r') as f:
 
 # Initialize model with config
 model = ConvLSTMModel(
-    input_dim=config['model']['input_dim'],          # 6
-    hidden_dim=config['model']['hidden_dim'],        # [64, 32]
+    input_dim=config['model']['input_dim'],             # 6
+    hidden_dim=config['model']['hidden_dim'],           # [64, 32]
     kernel_size=tuple(config['model']['kernel_size']),  # (3, 3)
-    num_layers=config['model']['num_layers'],        # 2
-    height=config['model']['height'],                # 128
-    width=config['model']['width'],                  # 128
-    num_classes=config['model']['num_classes']       # 3
+    num_layers=config['model']['num_layers'],           # 2
+    height=config['model']['height'],                   # 128
+    width=config['model']['width'],                     # 128
+    num_classes=config['model']['num_classes']          # 3
 )
 
 # OR initialize manually (ensure values match model_config)
@@ -508,7 +511,7 @@ for i in range(5, 15):
     assert video_tensor[i, 3, :, :].max() == 0.0  # Front intent channel inactive
     assert video_tensor[i, 5, :, :].max() == 0.0  # Right intent channel inactive
 
-print("✅ All tests passed!")
+print("All tests passed.")
 ```
 
 ---
@@ -543,17 +546,7 @@ pip install -r mobile_app/requirements.txt
 
 ---
 
-## 🚀 Performance Optimization
-
-### Tips for Mobile Deployment
-
-1. **Batch Processing**: Process multiple frames in parallel if possible
-2. **Frame Caching**: Cache preprocessed frames for real-time applications
-3. **Quantization**: Use INT8 quantization for TFLite models (4× smaller)
-4. **GPU Acceleration**: Enable GPU delegate on supported devices
-5. **Resolution**: Consider 64×64 for faster processing (requires retraining)
-
-### Expected Performance
+## 🚀 Expected Performance
 
 | Device Type | Preprocessing Time | Inference Time | Total Latency |
 |-------------|-------------------|----------------|---------------|
@@ -567,12 +560,18 @@ pip install -r mobile_app/requirements.txt
 
 ## 📚 Additional Resources
 
+### Documentation
 - [Prototype 9 README](../notebooks/PROTOTYPE_9_README.md) - Original model documentation
 - [Mobile Deployment Guide](../SUBREADMES/MOBILE_DEPLOYMENT.md) - Full deployment instructions (if exists)
 - [Model Architecture](../models/conv_lstm_classifier.py) - ConvLSTM implementation
 - [Model Configuration](model_config.yaml) - Complete model and preprocessing config (YAML)
 - [Model Configuration](model_config.json) - Complete model and preprocessing config (JSON)
 - [Deployment Guide](FILES_FOR_MOBILE_TEAM.txt) - Complete list of files needed for mobile deployment
+- [Conceptual Notes](CONCEPTUAL_NOTES.txt) - **START HERE** - Explains FPS, shapes, intent encoding, and other key concepts
+
+### Example Files
+- [example_recorded_video.py](example_recorded_video.py) - 7 complete examples for processing pre-recorded videos
+- [example_live_camera.py](example_live_camera.py) - 7 complete examples for live camera feed processing with mobile integration template
 
 ---
 
@@ -585,6 +584,9 @@ This module includes all files needed for mobile deployment:
 | `__init__.py` | Package initialization | Python |
 | `config.py` | Configuration constants | Python |
 | `preprocessor.py` | Video preprocessing class | Python |
+| `example_recorded_video.py` | Examples for pre-recorded videos | Python |
+| `example_live_camera.py` | Examples for live camera feeds | Python |
+| `CONCEPTUAL_NOTES.txt` | Key concepts explained | Text |
 | `model_config.yaml` | Model configuration | YAML |
 | `model_config.json` | Model configuration | JSON |
 | `requirements.txt` | Python dependencies | Text |
@@ -601,17 +603,9 @@ Part of the ConvLSTM Turn Prediction thesis project.
 
 ---
 
-## 👤 Author
-
-**ejans**  
-Thesis Project: ConvLSTM-based Turn Prediction for Mobile Devices
-
----
-
 ## 📅 Version History
 
 | Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0   | Feb 24, 2026 | Initial release based on Prototype 9 |
+|---------|------|---------|| 1.0.1   | Feb 25, 2026 | Added example files (example_recorded_video.py, example_live_camera.py) || 1.0.0   | Feb 24, 2026 | Initial release based on Prototype 9 |
 
 ---
