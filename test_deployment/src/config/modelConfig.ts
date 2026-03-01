@@ -84,7 +84,8 @@ export const DEVICE_CONFIG = {
   screenHeight: 2400,               // Screen height in pixels
   expectedInferenceMs: 100,         // Expected inference time
   frameInterval: 1,                 // Take every frame at 20fps
-  bufferDurationMs: 1000            // 1 second of frames for fast response
+  bufferDurationMs: 1000,           // 1 second of frames for fast response
+  predictionInterval: 2             // Run prediction every Nth frame (2 = 10 predictions/sec)
 } as const;
 
 export type PredictionClass = 'Front' | 'Left' | 'Right';

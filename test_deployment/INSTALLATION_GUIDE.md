@@ -189,18 +189,35 @@ The app uses a **sliding window** approach for real-time predictions:
    - Shows "Buffering" message with progress
 
 2. **First Prediction (~1 second):**
-   - After collecting enough frames, runs first prediction
-   - May use frame padding if needed for faster initial response
+   - After collecting 20 frames (full buffer), runs first prediction
+   - No frame padding - waits for complete buffer for accuracy
 
 3. **Continuous Predictions (after 1 second):**
    - Maintains rolling buffer of last 20 frames
-   - Gives new prediction every 50ms using sliding window
-   - Example: Frames [1-20] → prediction, [2-21] → prediction, [3-22] → prediction, etc.
+   - Gives new prediction every 2nd frame (10 predictions/second)
+   - Example: Frames [1-20] → prediction, [3-22] → prediction, [5-24] → prediction, etc.
+   - Sliding window ensures smooth continuous predictions
 
 4. **Performance:**
    - Capture rate: 20 FPS (50ms interval)
-   - Prediction rate: 20 predictions/second (every 50ms)
+   - Prediction rate: 10 predictions/second (every 2 frames)
    - Expected latency: ~100-200ms per prediction on target device
+   - Battery-optimized: Reduced prediction frequency saves power
+
+**Customizing Prediction Rate:**
+
+You can adjust how often predictions occur by editing `predictionInterval` in [src/config/modelConfig.ts](src/config/modelConfig.ts):
+
+```typescript
+export const DEVICE_CONFIG = {
+  // ...
+  predictionInterval: 2  // Change this value:
+  // 1 = Every frame (20 predictions/sec) - Most responsive
+  // 2 = Every 2nd frame (10 predictions/sec) - Balanced (Current)
+  // 3 = Every 3rd frame (~7 predictions/sec) - Good battery life
+  // 5 = Every 5th frame (4 predictions/sec) - Best battery life
+}
+```
 
 ---
 
@@ -401,6 +418,298 @@ For final deployment without Expo Go:
    - Recording/logging features
    - Multiple camera support
    - Model selection
+
+---
+
+## Step 6: Building a Standalone APK
+
+There are two methods to build an APK for distribution:
+
+### Method 1: EAS Build (Recommended - Cloud-based)
+
+EAS (Expo Application Services) is the easiest way to build production-ready APKs.
+
+**Requirements:**
+- Expo account (free tier available)
+- Internet connection
+
+**Steps:**
+
+1. **Install EAS CLI:**
+   ```bash
+   npm install -g eas-cli
+   ```
+
+2. **Login to Expo:**
+   ```bash
+   eas login
+   # Or create account: eas register
+   ```
+
+3. **Configure EAS:**
+   ```bash
+   eas build:configure
+   ```
+   This creates an `eas.json` file with build configurations.
+
+4. **Build APK for Android:**
+   ```bash
+   # Build APK (for local installation)
+   eas build --platform android --profile preview
+
+   # Alternative: Build AAB (for Google Play Store)
+   # eas build --platform android --profile production
+   ```
+
+5. **Wait for build:**
+   - Build happens in the cloud (5-15 minutes)
+   - You'll receive a link to download the APK
+   - Download and install on your device
+
+**Advantages:**
+- No need for Android Studio or local Android SDK
+- Handles signing and configuration automatically
+- Build logs available online
+- Can build for iOS too
+
+**Customizing EAS Build:**
+
+Edit `eas.json` (created in step 3):
+```json
+{
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "aab"
+      }
+    }
+  }
+}
+```
+
+---
+
+### Method 2: Local Build (Requires Android Studio)
+
+Build the APK locally on your machine.
+
+**Requirements:**
+- Android Studio installed
+- Android SDK configured
+- Java JDK 11 or higher
+
+**Steps:**
+
+1. **Generate Android native code:**
+   ```bash
+   npx expo prebuild --platform android
+   ```
+   This creates an `android/` folder with native code.
+
+2. **Install Android dependencies:**
+   ```bash
+   cd android
+   ./gradlew clean
+   cd ..
+   ```
+
+3. **Build APK:**
+   ```bash
+   # Debug APK (for testing)
+   cd android
+   ./gradlew assembleDebug
+
+   # Release APK (for distribution)
+   ./gradlew assembleRelease
+   ```
+
+4. **Locate the APK:**
+   - Debug: `android/app/build/outputs/apk/debug/app-debug.apk`
+   - Release: `android/app/build/outputs/apk/release/app-release.apk`
+
+5. **Install on device:**
+   ```bash
+   # Via ADB
+   adb install android/app/build/outputs/apk/debug/app-debug.apk
+   
+   # Or transfer the APK file to your phone and install manually
+   ```
+
+**For Release Build (signed APK):**
+
+You need to create a keystore for signing:
+
+```bash
+# Generate keystore
+cd android/app
+keytool -genkeypair -v -storetype PKCS12 -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then configure `android/gradle.properties`:
+```properties
+MYAPP_RELEASE_STORE_FILE=my-release-key.keystore
+MYAPP_RELEASE_KEY_ALIAS=my-key-alias
+MYAPP_RELEASE_STORE_PASSWORD=your_password
+MYAPP_RELEASE_KEY_PASSWORD=your_password
+```
+
+And update `android/app/build.gradle`:
+```gradle
+android {
+    ...
+    signingConfigs {
+        release {
+            storeFile file('my-release-key.keystore')
+            storePassword System.getenv("MYAPP_RELEASE_STORE_PASSWORD")
+            keyAlias System.getenv("MYAPP_RELEASE_KEY_ALIAS")
+            keyPassword System.getenv("MYAPP_RELEASE_KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+```
+
+---
+
+### Quick Comparison
+
+| Feature | EAS Build | Local Build |
+|---------|-----------|-------------|
+| Setup Time | 5 minutes | 30+ minutes |
+| Requirements | Internet only | Android Studio, SDK |
+| Build Speed | 5-15 min (cloud) | 2-5 min (local) |
+| Difficulty | Easy | Moderate |
+| Signing | Automatic | Manual setup |
+| Best For | Quick testing | Development |
+
+---
+
+### Recommended Workflow for Your Thesis Project
+
+**For testing on your Redmi Note 13 Pro 5G:**
+1. Use **Expo Go** for rapid development (Step 3)
+2. Use **EAS Build (preview)** when you need a standalone APK to share
+
+**Commands Summary:**
+```bash
+# Daily development
+npx expo start
+
+# Build APK for testing/demo
+eas build --platform android --profile preview
+
+# Check build status
+eas build:list
+```
+
+**APK File Size:**
+- Expect around 40-80 MB for the APK
+- Includes React Native, Expo modules, and your model file
+
+---
+
+## Step 7: Updating Your App & Rebuilding
+
+After making changes to your app code, follow these steps to deploy the updated version:
+
+### For Development (Using Expo Go)
+
+Changes are automatically reflected - just save your files:
+```bash
+# App will hot-reload automatically
+# Or manually reload by pressing 'r' in terminal
+```
+
+### For Standalone APK (Production Updates)
+
+When you need to rebuild and redistribute your APK:
+
+**1. Update Version Number (Recommended):**
+
+Edit `app.json` to bump the version:
+```json
+{
+  "expo": {
+    "version": "1.0.1"  // Change from 1.0.0 to 1.0.1, etc.
+  }
+}
+```
+
+**2. Rebuild with EAS:**
+```bash
+cd test_deployment
+
+# For testing/preview APK
+eas build --platform android --profile preview
+
+# For production (Google Play Store)
+eas build --platform android --profile production
+```
+
+**3. Check Build Status:**
+```bash
+# List all builds
+eas build:list
+
+# View specific build details
+eas build:view [build-id]
+```
+
+**4. Download & Install:**
+- Once build completes (5-15 minutes), you'll get a download link
+- Download the new APK
+- Install on your device (may need to uninstall old version first)
+- Test your changes
+
+### Quick Update Workflow
+
+```bash
+# 1. Make your code changes
+# 2. Test locally first
+npx expo start
+
+# 3. Once satisfied, update version in app.json
+# 4. Build new APK
+eas build --platform android --profile preview
+
+# 5. Wait for build, download, and test
+```
+
+### Build Profiles Explained
+
+- **preview**: Creates APK files for direct installation (great for testing and demos)
+- **production**: Creates AAB files with auto-increment version for Google Play Store
+- **development**: Creates development builds with debugging tools enabled
+
+### Troubleshooting Build Issues
+
+**Build failed?**
+```bash
+# View detailed build logs
+eas build:list
+# Click on the build URL to see full logs
+```
+
+**Need to cancel a build?**
+```bash
+eas build:cancel
+```
+
+**Clear build cache:**
+```bash
+eas build --platform android --profile preview --clear-cache
+```
 
 ---
 

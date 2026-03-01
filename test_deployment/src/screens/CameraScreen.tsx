@@ -3,8 +3,8 @@
  * 
  * Live camera view with real-time turn prediction
  * - Captures frames silently from rear camera (no sound/flash)
- * - Uses sliding window: frames 1-20 → prediction, 2-21 → prediction, etc.
- * - Gives a new prediction every 50ms after initial 20 frames collected
+ * - Uses sliding window: frames [1-20] → prediction, [3-22] → prediction, [5-24] → prediction, etc.
+ * - Gives a new prediction every 2nd frame after initial 20-frame buffer (10 predictions/sec)
  * - Shows predicted direction at bottom
  * - Shows inference/latency metrics at top-left
  */
@@ -74,7 +74,9 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
   
   // Inference lock to prevent concurrent inferences
   const isInferencingRef = useRef<boolean>(false);
-  const hasFirstPredictionRef = useRef<boolean>(false);
+  
+  // Frame counter for prediction interval (predict every Nth frame)
+  const predictionFrameCounterRef = useRef<number>(0);
   
   // Capture interval reference
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -176,16 +178,14 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       
       if (wasAdded) {
         setFrameCount((prev: number) => prev + 1);
+        predictionFrameCounterRef.current += 1;
         
         const buffer = frameBufferRef.current;
         const isBufferReady = buffer.isReady();
-        const canPredictEarly = buffer.canPredictEarly();
         
-        // First prediction: allow early prediction with fewer frames (padded)
-        // Subsequent predictions: wait for full buffer (sliding window)
-        const shouldPredict = !hasFirstPredictionRef.current 
-          ? canPredictEarly // Early prediction for first one (faster response)
-          : isBufferReady;  // Full buffer for subsequent predictions
+        // Wait for full buffer, then predict every Nth frame based on predictionInterval
+        const shouldPredict = isBufferReady && 
+                            (predictionFrameCounterRef.current % DEVICE_CONFIG.predictionInterval === 0);
         
         if (shouldPredict && !isInferencingRef.current) {
           await runInference();
@@ -198,34 +198,21 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
 
   /**
    * Run model inference on buffered frames (sliding window)
-   * First prediction: uses padded frames for faster response
-   * Subsequent predictions: uses frames [n-19, n-18, ..., n] for each new frame n
+   * Uses the most recent 20 frames from the buffer for prediction
+   * Predictions occur every Nth frame based on predictionInterval config
    */
   const runInference = async () => {
     const buffer = frameBufferRef.current;
     
-    if (isInferencingRef.current) {
-      return;
-    }
-    
-    // For first prediction, allow early inference with padding
-    // For subsequent predictions, require full buffer
-    const canInfer = !hasFirstPredictionRef.current 
-      ? buffer.canPredictEarly()
-      : buffer.isReady();
-    
-    if (!canInfer) {
+    if (isInferencingRef.current || !buffer.isReady()) {
       return;
     }
     
     isInferencingRef.current = true;
     
     try {
-      
-      // Get frames (padded if first prediction, normal if subsequent)
-      const frames = !hasFirstPredictionRef.current && !buffer.isReady()
-        ? buffer.getFramesPadded()
-        : buffer.getFrames();
+      // Get the most recent 20 frames (sliding window)
+      const frames = buffer.getFrames();
       
       // Preprocess frames
       const preprocessor = preprocessorRef.current;
@@ -241,13 +228,7 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       setMetrics(newMetrics);
       setPredictionCount((prev: number) => prev + 1);
       
-      // Mark that first prediction is complete
-      if (!hasFirstPredictionRef.current) {
-        hasFirstPredictionRef.current = true;
-        console.log('[Camera] First prediction complete');
-      }
-      
-      console.log(`[Camera] Prediction: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
+      console.log(`[Camera] Prediction #${predictionCount + 1}: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
       console.log(`[Camera] Latency: ${newMetrics.totalLatencyMs.toFixed(1)}ms`);
       
       // Don't clear buffer - sliding window keeps frames for next prediction
