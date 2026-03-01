@@ -25,7 +25,8 @@ Minimalistic black & white palette for a clean, distraction-free interface.
 - **Live Camera**: Real-time camera preview with automatic prediction
 - **Direction Label**: Large direction indicator at the bottom
 - **Performance Overlay**: Inference time and latency metrics at top-left (in ms)
-- **Auto-Prediction**: Model runs automatically every 2 seconds (20 frames @ 10 FPS)
+- **Auto-Prediction**: Sliding window inference - captures at 20 FPS, gives new prediction every 50ms after initial 1-second buffer
+- **Fast Response**: First prediction after 1 second (20 frames collected), then continuous predictions using sliding window
 
 ## Project Structure
 
@@ -58,12 +59,13 @@ test_deployment/
 |-----------|-------|
 | Input Shape | [1, 20, 6, 128, 128] |
 | Sequence Length | 20 frames |
-| FPS | 10 frames/second |
-| Duration | 2 seconds |
+| FPS | 20 frames/second |
+| Duration | 1 second |
 | Channels | 6 (3 RGB + 3 Intent) |
 | Frame Size | 128 x 128 |
 | Output Classes | 3 (Front, Left, Right) |
 | Model Size | ~1.5 MB |
+| Prediction Interval | New prediction every 50ms (sliding window) |
 
 ## Intent Channels
 
@@ -100,11 +102,11 @@ npx expo run:android
 ### Building for Production
 
 ```bash
-# Create production build
-npx expo build:android
+# Create production build using EAS Build (recommended)
+npx eas build --platform android --profile preview
 
-# Or use EAS Build
-npx eas build --platform android
+# For production release
+npx eas build --platform android --profile production
 ```
 
 ## Usage
@@ -113,8 +115,10 @@ npx eas build --platform android
 2. Tap the **Start** button on the main menu
 3. Point the rear camera at the road ahead
 4. The app will automatically:
-   - Capture frames at 10 FPS
-   - Run inference every 2 seconds
+   - Capture frames at 20 FPS
+   - Buffer 20 frames (1 second of video)
+   - Run first prediction after 1 second
+   - Continue with sliding window predictions every 50ms
    - Display the predicted direction at the bottom
    - Show performance metrics at the top-left
 
@@ -137,12 +141,19 @@ The current implementation includes a mock inference function for development. T
 2. Update `src/services/inference.ts` to use the actual TFLite interpreter
 3. Ensure the model file is correctly bundled in assets
 
-### Frame Capture
+### Frame Capture & Sliding Window
 
-The CameraScreen uses `expo-camera` for frame capture. For production, consider:
+The CameraScreen uses `expo-camera` with a sliding window approach:
+- **Continuous capture**: 20 FPS (50ms intervals) for real-time processing
+- **Buffer management**: Maintains rolling buffer of last 20 frames
+- **First prediction**: Uses frame padding if needed (faster initial response)
+- **Subsequent predictions**: Sliding window - uses frames [n-19 to n] for each new frame n
+- **Prediction frequency**: New prediction every 50ms after initial buffer is filled
+
+For production optimization, consider:
 - Using `expo-gl` with shaders for more efficient frame processing
 - Implementing native modules for direct YUV frame access
-- Using `expo-frame-processor` for real-time frame manipulation
+- Using `vision-camera` with frame processors for real-time manipulation
 
 ## Architecture
 

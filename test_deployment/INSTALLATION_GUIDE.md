@@ -179,6 +179,31 @@ For a production-ready APK that doesn't require Expo Go:
 
 ---
 
+## Understanding the Prediction Timing
+
+The app uses a **sliding window** approach for real-time predictions:
+
+1. **Initial Buffer (0-1 second):**
+   - Captures frames at 20 FPS (one frame every 50ms)
+   - Collects 20 frames total (1 second of video)
+   - Shows "Buffering" message with progress
+
+2. **First Prediction (~1 second):**
+   - After collecting enough frames, runs first prediction
+   - May use frame padding if needed for faster initial response
+
+3. **Continuous Predictions (after 1 second):**
+   - Maintains rolling buffer of last 20 frames
+   - Gives new prediction every 50ms using sliding window
+   - Example: Frames [1-20] → prediction, [2-21] → prediction, [3-22] → prediction, etc.
+
+4. **Performance:**
+   - Capture rate: 20 FPS (50ms interval)
+   - Prediction rate: 20 predictions/second (every 50ms)
+   - Expected latency: ~100-200ms per prediction on target device
+
+---
+
 ## Step 4: Testing the App
 
 Once the app is running:
@@ -191,9 +216,11 @@ Once the app is running:
    - Grant camera permission when prompted
    - Point rear camera at the road/scene
    - The app will automatically:
-     - Capture frames at 10 FPS
+     - Capture frames at 20 FPS (50ms interval)
+     - Buffer 20 frames (1 second of video)
      - Show buffer progress at bottom
-     - Run inference every 2 seconds
+     - Run first prediction after 1 second
+     - Continue with sliding window predictions every 50ms
      - Display prediction ("Front", "Left", "Right") at bottom center
 
 3. **Performance Metrics (Top-Left):**
@@ -319,6 +346,8 @@ npx expo start
 - Test on actual Redmi Note 13 Pro 5G for accurate metrics
 - Emulator performance will be slower
 - Expected inference time: ~100ms on target device
+- Prediction interval: New prediction every 50ms after initial buffer (using sliding window)
+- First prediction: ~1 second (time to collect 20 frames at 20 FPS)
 
 ---
 
