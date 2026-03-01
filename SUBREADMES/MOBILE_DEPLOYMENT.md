@@ -149,7 +149,7 @@ Use a Teacher-Student approach where the Teacher is the original ConvLSTM with [
 Load the trained PyTorch model, set it to evaluation mode, create a dummy input tensor matching the input shape [1, 20, 6, 128, 128], then use torch.onnx.export() with the following key settings:
 
 - opset_version=12 for better compatibility
-- do_constant_folding=True to optimize constants
+- do_constant_folding=True to optimize constants (always enabled)
 - Define input/output names ('video_input', 'direction_output')
 - Set dynamic_axes for batch_size flexibility
   After export, verify the ONNX model using onnx.checker.check_model() to ensure validity.
