@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "EluSEEdate",
+    "slug": "eluseedate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#000000"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.thesis.eluseedate",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to predict turn directions."
+      }
+    },
+    "android": {
+      "package": "com.thesis.eluseedate",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EluSEEdate to access your camera for turn prediction."
+        }
+      ]
+    ]
+  }
+}
