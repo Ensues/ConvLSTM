@@ -55,12 +55,12 @@ expo-camera: ~17.0.10
   - Works in both Expo Go (development) and production builds
   - Frame capture at ~2-3 FPS with takePictureAsync (hardware limited)
 
-expo-image-manipulator: ^55.0.9
+expo-image-manipulator: ~14.0.8
   - WHY: Resize camera frames to model input size (128x128)
   - Efficient JPEG/PNG manipulation
   - Required for preprocessing pipeline
 
-expo-gl: ^55.0.9
+expo-gl: ~16.0.10
   - WHY: OpenGL ES support for potential GPU-accelerated preprocessing
   - Currently included for future optimizations
   - May be used for shader-based frame processing
@@ -85,13 +85,10 @@ react-native-safe-area-context: ~5.6.0
                               STORAGE
 ================================================================================
 
-@react-native-async-storage/async-storage: ^3.0.1
+@react-native-async-storage/async-storage: 2.2.0
   - WHY: Persisting user preferences and app state
+  - SDK 54 compatible version (NOT 3.x which is for SDK 55+)
   - Currently used minimally, prepared for future settings
-
-react-native-fs: ^2.20.0
-  - WHY: File system access for model loading
-  - May be used for caching preprocessed frames
 
 ================================================================================
                            DEVELOPMENT
