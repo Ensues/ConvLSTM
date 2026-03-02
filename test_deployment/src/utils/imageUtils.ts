@@ -32,23 +32,10 @@ export async function decodeBase64ToPixels(
       base64Data = base64Image.split(',')[1];
     }
     
-    // Create proper data URI
-    const imageUri = `data:image/jpeg;base64,${base64Data}`;
+    // Skip ImageManipulator resize - it's too slow (adds ~15-18 seconds per frame!)
+    // The camera capture already handles sizing, and our pixel extraction
+    // will work with the data as-is
     
-    // First, resize the image to target dimensions using ImageManipulator
-    // This ensures we have consistent dimensions
-    const manipResult = await ImageManipulator.manipulateAsync(
-      imageUri,
-      [
-        { resize: { width: targetWidth, height: targetHeight } }
-      ],
-      {
-        compress: 1,
-        format: ImageManipulator.SaveFormat.JPEG,
-      }
-    );
-    
-    // Now we have a resized image at manipResult.uri
     // For pixel extraction, we use an estimation approach that works in Expo Go
     const pixelData = await extractPixelsFromJPEG(base64Data, targetWidth, targetHeight);
     

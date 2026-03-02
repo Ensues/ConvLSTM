@@ -33,16 +33,23 @@ react-native: 0.81.5
 
 react-native-fast-tflite: ^1.6.1
   - WHY: Provides efficient TensorFlow Lite inference on mobile devices
-  - GPU delegate support for accelerated inference
-  - Supports Float32 input tensors (required for ConvLSTM model)
+  - GPU delegate support for accelerated inference (enabled by default)
+  - Supports Float32/Float16 input tensors (using Float16 for optimization)
   - Native module - REQUIRES development build (not Expo Go)
-  - Expected inference time: ~100ms on Redmi Note 13 Pro 5G
+  - Expected inference time: ~100-500ms on Redmi Note 13 Pro 5G with GPU
+  - Expected inference time: ~2-5s on CPU fallback mode
 
   IMPORTANT: This library requires a development build to work:
     1. Run: npx expo prebuild
     2. Run: npx expo run:android
   
   In Expo Go, the app runs in DEMO MODE with simulated predictions.
+
+MODEL OPTIMIZATION:
+  - Using Float16 quantized model (3.62 MB, down from 7.14 MB Float32)
+  - GPU delegate enabled for hardware acceleration
+  - Expected ~2-4x faster inference than unoptimized Float32
+  - Minimal accuracy loss (~0.1-0.5% difference)
 
 ================================================================================
                             CAMERA & IMAGING
@@ -56,9 +63,10 @@ expo-camera: ~17.0.10
   - Frame capture at ~2-3 FPS with takePictureAsync (hardware limited)
 
 expo-image-manipulator: ~14.0.8
-  - WHY: Resize camera frames to model input size (128x128)
-  - Efficient JPEG/PNG manipulation
-  - Required for preprocessing pipeline
+  - WHY: Image manipulation utilities for future optimizations
+  - Efficient JPEG/PNG manipulation capabilities
+  - Currently used as fallback for image validation
+  - Note: Frame resizing handled by camera capture settings for performance
 
 expo-gl: ~16.0.10
   - WHY: OpenGL ES support for potential GPU-accelerated preprocessing

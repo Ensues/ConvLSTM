@@ -87,8 +87,8 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
   const isInferencingRef = useRef<boolean>(false);
   const isCapturingRef = useRef<boolean>(false);
   
-  // Capture interval reference
-  const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Capture interval reference (now using setTimeout for async control)
+  const captureIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Initialize model on screen mount
@@ -149,23 +149,34 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
     setDebugStatus('Starting capture...');
     console.log(`[Camera] Starting continuous capture at ${REALISTIC_CAPTURE_FPS} FPS...`);
     
-    // Capture at realistic rate for takePictureAsync (500ms interval = 2fps)
-    const captureInterval = 1000 / REALISTIC_CAPTURE_FPS;
-    
-    captureIntervalRef.current = setInterval(async () => {
+    // Use recursive timeout instead of setInterval for proper async handling
+    const captureLoop = async () => {
+      if (!isCapturingRef.current) return;
+      
+      const startTime = Date.now();
       await captureFrame();
-    }, captureInterval);
+      const elapsed = Date.now() - startTime;
+      
+      // Schedule next capture, accounting for time spent
+      const captureInterval = 1000 / REALISTIC_CAPTURE_FPS;
+      const delay = Math.max(0, captureInterval - elapsed);
+      
+      captureIntervalRef.current = setTimeout(captureLoop, delay) as any;
+    };
+    
+    // Start the loop
+    captureLoop();
   }, []);
 
   /**
    * Stop frame capture
    */
   const stopCapture = useCallback(() => {
+    isCapturingRef.current = false;
     if (captureIntervalRef.current) {
-      clearInterval(captureIntervalRef.current);
+      clearTimeout(captureIntervalRef.current);
       captureIntervalRef.current = null;
     }
-    isCapturingRef.current = false;
     setIsCapturing(false);
     setDebugStatus('Capture stopped');
     console.log('[Camera] Capture stopped');
@@ -247,16 +258,18 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       const wasAdded = frameBufferRef.current.addFrame(frameData);
       
       if (wasAdded) {
-        const newCount = frameCount + 1;
-        setFrameCount(newCount);
-        
-        const buffer = frameBufferRef.current;
-        const bufferCount = buffer.getFrameCount();
-        setDebugStatus(`Captured: ${newCount} | Buffer: ${bufferCount}/${SEQ_LEN}`);
-        
-        console.log(`[Camera] Frame ${newCount} added to buffer (${bufferCount}/${SEQ_LEN})`);
+        // Use functional update to avoid stale closure
+        setFrameCount(prev => {
+          const newCount = prev + 1;
+          const buffer = frameBufferRef.current;
+          const bufferCount = buffer.getFrameCount();
+          setDebugStatus(`Captured: ${newCount} | Buffer: ${bufferCount}/${SEQ_LEN}`);
+          console.log(`[Camera] Frame ${newCount} added to buffer (${bufferCount}/${SEQ_LEN})`);
+          return newCount;
+        });
         
         // Run inference when buffer is ready (or can predict early with padding)
+        const buffer = frameBufferRef.current;
         if (buffer.canPredictEarly() && !isInferencingRef.current) {
           await runInferenceWithPadding();
         }
@@ -296,12 +309,15 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       setDirectionLabel(prediction.className);
       setConfidence(prediction.confidence);
       setMetrics(newMetrics);
-      const newPredCount = predictionCount + 1;
-      setPredictionCount(newPredCount);
       
-      setDebugStatus(`Prediction #${newPredCount}: ${prediction.className}`);
-      console.log(`[Camera] Prediction #${newPredCount}: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
-      console.log(`[Camera] Latency: ${newMetrics.totalLatencyMs.toFixed(1)}ms`);
+      // Use functional update to avoid stale closure
+      setPredictionCount(prev => {
+        const newPredCount = prev + 1;
+        setDebugStatus(`Prediction #${newPredCount}: ${prediction.className}`);
+        console.log(`[Camera] Prediction #${newPredCount}: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
+        console.log(`[Camera] Latency: ${newMetrics.totalLatencyMs.toFixed(1)}ms`);
+        return newPredCount;
+      });
       
     } catch (error: any) {
       console.error('[Camera] Inference error:', error?.message || error);
