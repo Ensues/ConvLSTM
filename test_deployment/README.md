@@ -40,8 +40,8 @@ Minimalistic black & white palette for a clean, distraction-free interface.
 - **Live Camera**: Real-time camera preview with automatic prediction
 - **Direction Label**: Large direction indicator at the bottom
 - **Performance Overlay**: Inference time and latency metrics at top-left (in ms)
-- **Auto-Prediction**: Sliding window inference - captures at 20 FPS, gives new prediction every 50ms after initial 1-second buffer
-- **Fast Response**: First prediction after 1 second (20 frames collected), then continuous predictions using sliding window
+- **Auto-Prediction**: Sliding window inference - captures at 2 FPS (limited by takePictureAsync), gives new prediction after each captured frame
+- **Fast Response**: First prediction after ~10 frames (early prediction with padding), then continuous predictions using 20-frame sliding window
 
 ## Project Structure
 
@@ -79,13 +79,17 @@ test_deployment/
 |-----------|-------|
 | Input Shape | [1, 20, 6, 128, 128] |
 | Sequence Length | 20 frames |
-| FPS | 20 frames/second |
-| Duration | 1 second |
+| Model FPS | 20 frames/second (training) |
+| Camera FPS | 2 frames/second (hardware limited) |
+| Duration | ~10 seconds of capture (20 frames @ 2 FPS) |
 | Channels | 6 (3 RGB + 3 Intent) |
 | Frame Size | 128 x 128 |
 | Output Classes | 3 (Front, Left, Right) |
-| Model Size | ~1.5 MB |
-| Prediction Interval | New prediction every 50ms (sliding window) |
+| Model Type | Float16 Quantized TFLite |
+| Model Size | 3.62 MB (optimized from 7.14 MB) |
+| GPU Acceleration | Enabled (via GPU delegate) |
+| Expected Inference | ~100-500ms (GPU) / ~2-5s (CPU fallback) |
+| Prediction Interval | New prediction after each frame (~500ms/frame) |
 
 ## Intent Channels
 
