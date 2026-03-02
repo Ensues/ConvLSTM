@@ -1,12 +1,27 @@
-# EluSEEdate - Mobile App
+# EluSEEdate - Mobile Turn Prediction App
 
-React Native/Expo mobile application for real-time turn direction prediction using the ConvLSTM model.
+React Native/Expo mobile application for real-time turn direction prediction using a ConvLSTM deep learning model with TensorFlow Lite inference.
 
 ## Overview
 
-This app uses a ConvLSTM (Convolutional Long Short-Term Memory) model to predict vehicle turn directions in real-time using the device camera. The model outputs one of three directions: **Front**, **Left**, or **Right**.
+This app uses a **ConvLSTM (Convolutional Long Short-Term Memory)** model to predict vehicle turn directions in real-time using the device camera. The model analyzes sequences of video frames and outputs one of three directions: **Front**, **Left**, or **Right**.
 
-**Based on**: Prototype 10 (with ONNX export support)
+**Model Architecture**: Prototype 10 (ConvLSTM with Global Average Pooling)
+**Inference Engine**: TensorFlow Lite via `react-native-fast-tflite`
+
+## Two Operating Modes
+
+### 1. Demo Mode (Expo Go)
+- **For quick UI/UX testing** without building native code
+- Camera and all UI features work normally
+- Predictions are **simulated** (random with realistic timing)
+- Run with: `npx expo start`
+
+### 2. Production Mode (Development Build)
+- **Real TFLite inference** on device
+- Actual model predictions from camera frames
+- Requires native build
+- Run with: `npx expo prebuild && npx expo run:android`
 
 ## Target Device
 
@@ -35,11 +50,14 @@ test_deployment/
 ├── App.tsx                          # Main entry point
 ├── package.json                     # Dependencies
 ├── app.json                         # Expo configuration
+├── VERSIONS.txt                     # Dependency versions & rationale
 ├── tsconfig.json                    # TypeScript config
 ├── babel.config.js                  # Babel config
+├── eas.json                         # EAS Build configuration
 ├── assets/
 │   └── model/
-│       └── convlstm.tflite          # TFLite model file
+│       ├── convlstm.tflite          # TFLite model file
+│       └── convlstm.onnx            # ONNX model (backup)
 └── src/
     ├── config/
     │   └── modelConfig.ts           # Model & device configuration
@@ -48,9 +66,11 @@ test_deployment/
     ├── screens/
     │   ├── MainMenuScreen.tsx       # Main menu with Start button
     │   └── CameraScreen.tsx         # Camera with inference
-    └── services/
-        ├── preprocessor.ts          # Frame preprocessing (TypeScript)
-        └── inference.ts             # TFLite model inference
+    ├── services/
+    │   ├── preprocessor.ts          # Frame preprocessing (TypeScript)
+    │   └── inference.ts             # TFLite model inference
+    └── utils/
+        └── imageUtils.ts            # Image decoding utilities
 ```
 
 ## Model Configuration
@@ -113,47 +133,71 @@ npx eas build --platform android --profile production
 
 1. Launch the app
 2. Tap the **Start** button on the main menu
-3. Point the rear camera at the road ahead
-4. The app will automatically:
-   - Capture frames at 20 FPS
-   - Buffer 20 frames (1 second of video)
-   - Run first prediction after 1 second
-   - Continue with sliding window predictions every 50ms
+3. Grant camera permission when prompted
+4. Point the rear camera at the road ahead
+5. The app will automatically:
+   - Capture frames from the camera
+   - Buffer frames until ready for prediction (min 10 frames)
+   - Run predictions using the ConvLSTM model
    - Display the predicted direction at the bottom
    - Show performance metrics at the top-left
+
+**Status Indicator**: A green dot means the app is actively capturing; "Demo Mode" label appears when using simulated predictions.
 
 ## Performance Metrics
 
 The app displays the following metrics in the top-left corner:
 
+- **Capture**: Time taken to capture a frame (in ms)
 - **Inference**: Time taken by the TFLite model (in ms)
 - **Preprocess**: Time taken to prepare frames (in ms)
 - **Total**: Combined latency (in ms)
-- **FPS**: Effective frames per second
+- **Frames/Predictions**: Count of captured frames and predictions
 
 ## Development Notes
 
-### TFLite Integration
+### TFLite Implementation
 
-The current implementation includes a mock inference function for development. To use the actual TFLite model:
+The app uses `react-native-fast-tflite` for on-device TensorFlow Lite inference. This library:
+- Provides GPU delegate support for accelerated inference
+- Supports Float32 input tensors (required for ConvLSTM)
+- Is registered as an Expo plugin in `app.json`
 
-1. Install react-native-tflite or equivalent
-2. Update `src/services/inference.ts` to use the actual TFLite interpreter
-3. Ensure the model file is correctly bundled in assets
+**Key Implementation Details** (see `src/services/inference.ts`):
 
-### Frame Capture & Sliding Window
+```typescript
+// Model loading (runs on app startup)
+const model = await loadTensorflowModel(
+  require('../../assets/model/convlstm.tflite')
+);
 
-The CameraScreen uses `expo-camera` with a sliding window approach:
-- **Continuous capture**: 20 FPS (50ms intervals) for real-time processing
-- **Buffer management**: Maintains rolling buffer of last 20 frames
-- **First prediction**: Uses frame padding if needed (faster initial response)
-- **Subsequent predictions**: Sliding window - uses frames [n-19 to n] for each new frame n
-- **Prediction frequency**: New prediction every 50ms after initial buffer is filled
+// Inference (runs for each prediction)
+const output = await model.run([tensorData]); // Float32Array [1, 20, 6, 128, 128]
+// output[0] contains class probabilities [front, left, right]
+```
+
+**Demo Mode Fallback**: If TFLite isn't available (Expo Go), the app automatically switches to demo mode with simulated predictions. Check the status indicator on the camera screen.
+
+### Frame Capture & Preprocessing
+
+The CameraScreen captures frames using `expo-camera`:
+- **Capture method**: `takePictureAsync` with base64 output (~200-500ms per frame)
+- **Frame processing**: Decodes JPEG to pixel data, resizes to 128x128
+- **Buffer management**: Rolling buffer of frames with padding for early predictions
+- **Preprocessing**: Normalizes to [0,1], adds intent channels (zeros), transposes to NCHW format
+
+**Preprocessing Pipeline** (see `src/services/preprocessor.ts`):
+1. Camera captures JPEG frame → base64
+2. Image decoded to RGBA pixel data
+3. Resized to 128x128 using bilinear interpolation
+4. Normalized to [0, 1] range
+5. Intent channels added (all zeros)
+6. Transposed to channels-first: [batch, seq, channels, height, width]
 
 For production optimization, consider:
-- Using `expo-gl` with shaders for more efficient frame processing
+- Using `react-native-vision-camera` with frame processors for real-time 30 FPS capture
 - Implementing native modules for direct YUV frame access
-- Using `vision-camera` with frame processors for real-time manipulation
+- Using GPU-accelerated preprocessing with `expo-gl` shaders
 
 ## Architecture
 

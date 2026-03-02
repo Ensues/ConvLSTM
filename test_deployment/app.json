@@ -31,7 +31,8 @@
         {
           "cameraPermission": "Allow EluSEEdate to access your camera for turn prediction."
         }
-      ]
+      ],
+      "react-native-fast-tflite"
     ],
     "extra": {
       "eas": {

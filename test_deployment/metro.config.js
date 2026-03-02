@@ -4,6 +4,9 @@ const { getDefaultConfig } = require('expo/metro-config');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// Add TFLite file extension support
+config.resolver.assetExts = [...(config.resolver.assetExts || []), 'tflite', 'onnx', 'bin'];
+
 // Workaround for Node.js v20+ and Windows path issue with node:sea
 // Disable node externals to prevent "ENOENT: no such file or directory, mkdir 'node:sea'" error
 config.server = {

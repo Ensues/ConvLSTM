@@ -37,6 +37,7 @@ import {
   PerformanceMetrics,
 } from '../services/inference';
 import { SEQ_LEN, DEVICE_CONFIG, FRAME_WIDTH, FRAME_HEIGHT } from '../config/modelConfig';
+import { decodeBase64ToPixels } from '../utils/imageUtils';
 
 type CameraScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Camera'>;
@@ -204,15 +205,43 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       setLastCaptureTime(captureTime);
       console.log(`[Camera] Frame captured in ${captureTime}ms`);
       
-      // Create simplified frame data
-      // For demo purposes, use placeholder pixel data
-      // Real implementation would decode base64 to actual pixels
-      const frameData: FrameData = {
-        data: new Uint8Array(FRAME_WIDTH * FRAME_HEIGHT * 4).fill(128), // Gray placeholder
-        width: FRAME_WIDTH,
-        height: FRAME_HEIGHT,
-        timestamp: Date.now(),
-      };
+      // Decode base64 image to pixel data
+      let frameData: FrameData;
+      
+      if (photo.base64) {
+        try {
+          // Decode the base64 image to actual pixel data
+          const decoded = await decodeBase64ToPixels(photo.base64, FRAME_WIDTH, FRAME_HEIGHT);
+          
+          frameData = {
+            data: decoded.data,
+            width: decoded.width,
+            height: decoded.height,
+            timestamp: Date.now(),
+          };
+          
+          console.log(`[Camera] Frame decoded: ${decoded.width}x${decoded.height}, ${decoded.data.length} bytes`);
+        } catch (decodeError: any) {
+          console.warn('[Camera] Failed to decode image, using fallback:', decodeError?.message);
+          
+          // Fallback to placeholder if decoding fails
+          frameData = {
+            data: new Uint8Array(FRAME_WIDTH * FRAME_HEIGHT * 4).fill(128),
+            width: FRAME_WIDTH,
+            height: FRAME_HEIGHT,
+            timestamp: Date.now(),
+          };
+        }
+      } else {
+        // No base64 data available - use placeholder
+        console.warn('[Camera] No base64 data in photo');
+        frameData = {
+          data: new Uint8Array(FRAME_WIDTH * FRAME_HEIGHT * 4).fill(128),
+          width: FRAME_WIDTH,
+          height: FRAME_HEIGHT,
+          timestamp: Date.now(),
+        };
+      }
       
       // Add frame to buffer
       const wasAdded = frameBufferRef.current.addFrame(frameData);
