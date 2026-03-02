@@ -2,14 +2,26 @@
  * TensorFlow Lite Inference Service
  * 
  * Handles model loading and inference for ConvLSTM turn prediction
- * Uses react-native-tflite for efficient on-device inference
+ * Uses TensorFlow.js for efficient on-device inference
+ * 
+ * NOTE: Running in CPU-only DEMO mode for Expo Go compatibility
+ * Model loading is disabled until TFJS model files are provided.
+ * The app will work with simulated predictions for testing.
  */
 
 import { NUM_CLASSES, CLASS_NAMES, MODEL_CONFIG, ClassId, PredictionClass } from '../config/modelConfig';
 import { ProcessedTensor } from './preprocessor';
 
-// Note: react-native-tflite needs to be installed and configured
-// For Expo, you may need to use a development build or expo-dev-client
+// TensorFlow.js is available but we use demo mode for Expo Go
+// Real inference would require a development build with native modules
+let tf: any = null;
+
+// Try to load TensorFlow.js (may fail in some environments)
+try {
+  tf = require('@tensorflow/tfjs');
+} catch (e) {
+  console.warn('[TFLite] TensorFlow.js not available, using demo mode');
+}
 
 /**
  * Prediction result from model inference
@@ -38,41 +50,44 @@ export interface PerformanceMetrics {
  */
 class TFLiteModelManager {
   private isLoaded: boolean = false;
-  private interpreter: any = null;
-  private modelPath: string = 'convlstm.tflite';
+  private model: any = null;
+  private demoMode: boolean = true;
 
   /**
    * Load the TFLite model
    * Must be called before running inference
    */
   async loadModel(): Promise<boolean> {
-    if (this.isLoaded) {
+    if (this.isLoaded && this.model) {
       return true;
     }
 
     try {
-      // For a real implementation with react-native-tflite:
-      // const model = await loadTensorflowModel(require('../../assets/model/convlstm.tflite'));
-      // this.interpreter = model;
+      console.log('[TFLite] Checking TensorFlow.js availability...');
       
-      console.log('[TFLite] Loading model:', this.modelPath);
+      if (tf) {
+        // Initialize TensorFlow.js with CPU backend (Expo Go compatible)
+        await tf.ready();
+        console.log('[TFLite] Backend ready:', tf.getBackend());
+      } else {
+        console.log('[TFLite] TensorFlow.js not available');
+      }
       
-      // Simulate model loading for development
-      // In production, replace with actual TFLite loading
-      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('[TFLite] ⚠️  Running in DEMO MODE (Expo Go)');
+      console.log('[TFLite] 📱 Camera and UI work, predictions are simulated');
+      console.log('[TFLite] 📝 For real inference, create a development build with:');
+      console.log('[TFLite]    npx expo prebuild && npx expo run:android');
       
-      this.isLoaded = true;
-      console.log('[TFLite] Model loaded successfully');
+      // In Expo Go, we can't load native TF models - run in demo mode
+      // Real model loading requires a development build with expo-gl
+      this.isLoaded = false;
+      this.demoMode = true;
+      return true; // Return true so app continues to function in demo mode
       
-      // Warm up model with dummy inference to initialize engine
-      console.log('[TFLite] Warming up model...');
-      await this.warmUp();
-      console.log('[TFLite] Model warm-up complete');
-      
-      return true;
     } catch (error) {
-      console.error('[TFLite] Failed to load model:', error);
-      return false;
+      console.error('[TFLite] Failed to initialize:', error);
+      this.demoMode = true;
+      return true; // Still allow app to run in demo mode
     }
   }
 
@@ -90,30 +105,43 @@ class TFLiteModelManager {
    * @returns Prediction result with class and confidence
    */
   async runInference(tensor: ProcessedTensor): Promise<PredictionResult> {
-    if (!this.isLoaded) {
-      throw new Error('Model not loaded. Call loadModel() first.');
-    }
-
     const startTime = performance.now();
 
     try {
-      // For real implementation:
-      // const outputTensor = await this.interpreter.run([tensor.data]);
-      // const output = outputTensor[0];
+      let output: number[];
       
-      // Mock inference for development
-      // Replace this with actual TFLite inference
-      const output = await this.mockInference(tensor);
+      if (this.demoMode || !this.isLoaded || !this.model) {
+        // Fallback: Use simulated predictions for development/testing
+        output = await this.simulateInference();
+      } else if (tf) {
+        // Real inference with loaded model (requires dev build)
+        const inputTensor = tf.tensor(tensor.data, tensor.shape);
+        const outputTensor = this.model.predict(inputTensor);
+        
+        // Get output data as array
+        const outputData = await outputTensor.data();
+        output = Array.from(outputData);
+        
+        // Cleanup tensors to prevent memory leaks
+        inputTensor.dispose();
+        outputTensor.dispose();
+      } else {
+        // TensorFlow.js not available, use simulation
+        output = await this.simulateInference();
+      }
       
       const inferenceTimeMs = performance.now() - startTime;
+      console.log('[TFLite] Inference completed in', inferenceTimeMs.toFixed(2), 'ms');
 
-      // Apply softmax to get probabilities
+      // Apply softmax to get probabilities (if model doesn't output probabilities already)
       const probabilities = this.softmax(output);
       
       // Get predicted class
       const classId = this.argmax(probabilities) as ClassId;
       const className = CLASS_NAMES[classId] as PredictionClass;
       const confidence = probabilities[classId];
+      
+      console.log('[TFLite] Prediction:', className, 'confidence:', (confidence * 100).toFixed(1) + '%');
 
       return {
         classId,
@@ -129,6 +157,24 @@ class TFLiteModelManager {
   }
 
   /**
+   * Simulate inference for development mode (when model not loaded)
+   * Generates realistic-looking predictions for testing UI
+   */
+  private async simulateInference(): Promise<number[]> {
+    // Simulate processing delay (80-120ms)
+    await new Promise(resolve => setTimeout(resolve, 80 + Math.random() * 40));
+    
+    // Generate more realistic logits (favor "Front" direction slightly)
+    const logits: number[] = [
+      Math.random() * 2 + 0.5,  // Front (slightly higher)
+      Math.random() * 2 - 0.5,  // Left
+      Math.random() * 2 - 0.5,  // Right
+    ];
+    
+    return logits;
+  }
+
+  /**
    * Warm up the model with a dummy inference
    * Reduces latency for first real prediction
    */
@@ -141,28 +187,10 @@ class TFLiteModelManager {
       };
       
       await this.runInference(dummyTensor);
+      console.log('[TFLite] Warm-up inference successful');
     } catch (error) {
       console.warn('[TFLite] Warm-up failed (non-critical):', error);
     }
-  }
-
-  /**
-   * Mock inference for development/testing
-   * Replace with actual TFLite inference in production
-   */
-  private async mockInference(tensor: ProcessedTensor): Promise<number[]> {
-    // Simulate inference delay
-    await new Promise(resolve => setTimeout(resolve, 80 + Math.random() * 40));
-    
-    // Generate mock logits (replace with real model output)
-    // In production, this would be the actual model output
-    const logits: number[] = [];
-    for (let i = 0; i < NUM_CLASSES; i++) {
-      // Generate random logits for testing
-      logits.push(Math.random() * 2 - 1);
-    }
-    
-    return logits;
   }
 
   /**
@@ -188,11 +216,13 @@ class TFLiteModelManager {
    * Unload model and free resources
    */
   async unloadModel(): Promise<void> {
-    if (this.interpreter) {
-      // In production: await this.interpreter.dispose();
-      this.interpreter = null;
+    if (this.model && typeof this.model.dispose === 'function') {
+      this.model.dispose();
+      this.model = null;
+      console.log('[TFLite] Model disposed and memory freed');
     }
     this.isLoaded = false;
+    this.demoMode = true;
     console.log('[TFLite] Model unloaded');
   }
 }
