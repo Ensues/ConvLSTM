@@ -3,10 +3,12 @@
  * 
  * Live camera view with real-time turn prediction
  * - Captures frames silently from rear camera (no sound/flash)
- * - Uses sliding window: frames [1-20] → prediction, [3-22] → prediction, [5-24] → prediction, etc.
- * - Gives a new prediction every 2nd frame after initial 20-frame buffer (10 predictions/sec)
+ * - Uses simplified capture approach compatible with Expo Go
  * - Shows predicted direction at bottom
  * - Shows inference/latency metrics at top-left
+ * 
+ * NOTE: takePictureAsync is slow (~200-500ms), so we capture at 2-3 FPS
+ * and duplicate frames to fill the 20-frame buffer for inference.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -34,11 +36,14 @@ import {
   PredictionResult,
   PerformanceMetrics,
 } from '../services/inference';
-import { SEQ_LEN, DEVICE_CONFIG } from '../config/modelConfig';
+import { SEQ_LEN, DEVICE_CONFIG, FRAME_WIDTH, FRAME_HEIGHT } from '../config/modelConfig';
 
 type CameraScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Camera'>;
 };
+
+// Realistic capture FPS for takePictureAsync (slow but works in Expo Go)
+const REALISTIC_CAPTURE_FPS = 2;
 
 export default function CameraScreen({ navigation }: CameraScreenProps) {
   // Camera permission state
@@ -47,15 +52,18 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
   // Camera reference for frame capture
   const cameraRef = useRef<CameraView>(null);
   
-  // Frame buffer for storing captured frames
-  const frameBufferRef = useRef<FrameBuffer>(new FrameBuffer(DEVICE_CONFIG.cameraFps));
+  // Camera mount state
+  const [isCameraReady, setIsCameraReady] = useState<boolean>(false);
+  
+  // Frame buffer for storing captured frames (use realistic FPS)
+  const frameBufferRef = useRef<FrameBuffer>(new FrameBuffer(REALISTIC_CAPTURE_FPS));
   
   // Preprocessor instance
   const preprocessorRef = useRef<VideoPreprocessor>(new VideoPreprocessor());
   
   // Prediction state
   const [currentPrediction, setCurrentPrediction] = useState<PredictionResult | null>(null);
-  const [directionLabel, setDirectionLabel] = useState<string>('--');
+  const [directionLabel, setDirectionLabel] = useState<string>('Waiting...');
   const [confidence, setConfidence] = useState<number>(0);
   
   // Performance metrics state
@@ -71,12 +79,12 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [frameCount, setFrameCount] = useState<number>(0);
   const [predictionCount, setPredictionCount] = useState<number>(0);
+  const [debugStatus, setDebugStatus] = useState<string>('Initializing...');
+  const [lastCaptureTime, setLastCaptureTime] = useState<number>(0);
   
   // Inference lock to prevent concurrent inferences
   const isInferencingRef = useRef<boolean>(false);
-  
-  // Frame counter for prediction interval (predict every Nth frame)
-  const predictionFrameCounterRef = useRef<number>(0);
+  const isCapturingRef = useRef<boolean>(false);
   
   // Capture interval reference
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -85,14 +93,21 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
    * Initialize model on screen mount
    */
   useEffect(() => {
+    console.log('[Camera] Screen mounted');
+    console.log('[Camera] Permission status:', permission?.granted ? 'granted' : 'not granted');
+    
     const initModel = async () => {
       console.log('[Camera] Initializing model...');
+      setDebugStatus('Loading model...');
       const loaded = await initializeModel();
       setIsModelLoaded(loaded);
       if (loaded) {
         console.log('[Camera] Model initialized successfully');
+        setDebugStatus('Model ready');
       } else {
-        Alert.alert('Error', 'Failed to load model');
+        console.log('[Camera] Model failed to load - using demo mode');
+        setDebugStatus('Demo mode (no model)');
+        // Don't show alert - app will work in demo mode
       }
     };
     
@@ -105,29 +120,36 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
   }, []);
 
   /**
-   * Start continuous frame capture when model is loaded
+   * Start continuous frame capture when permission is granted
+   * Start regardless of model status (demo mode works too)
    */
   useEffect(() => {
-    if (isModelLoaded && permission?.granted) {
-      startCapture();
+    if (permission?.granted) {
+      // Small delay to ensure camera is ready
+      const timer = setTimeout(() => {
+        startCapture();
+      }, 500);
+      return () => clearTimeout(timer);
     }
     
     return () => {
       stopCapture();
     };
-  }, [isModelLoaded, permission?.granted]);
+  }, [permission?.granted]);
 
   /**
    * Start continuous frame capture
    */
   const startCapture = useCallback(() => {
-    if (captureIntervalRef.current) return;
+    if (captureIntervalRef.current || isCapturingRef.current) return;
     
+    isCapturingRef.current = true;
     setIsCapturing(true);
-    console.log('[Camera] Starting continuous capture at 20 FPS...');
+    setDebugStatus('Starting capture...');
+    console.log(`[Camera] Starting continuous capture at ${REALISTIC_CAPTURE_FPS} FPS...`);
     
-    // Capture 20 frames per second (50ms interval) for 1 second buffer
-    const captureInterval = 1000 / DEVICE_CONFIG.cameraFps; // 50ms for 20fps
+    // Capture at realistic rate for takePictureAsync (500ms interval = 2fps)
+    const captureInterval = 1000 / REALISTIC_CAPTURE_FPS;
     
     captureIntervalRef.current = setInterval(async () => {
       await captureFrame();
@@ -142,77 +164,96 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
     }
+    isCapturingRef.current = false;
     setIsCapturing(false);
+    setDebugStatus('Capture stopped');
     console.log('[Camera] Capture stopped');
   }, []);
 
   /**
    * Capture a single frame from camera
+   * Uses takePictureAsync which is slow but works in Expo Go
    */
   const captureFrame = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current) {
+      console.log('[Camera] Camera ref not available');
+      setDebugStatus('Camera not ready');
+      return;
+    }
+    
+    const startTime = Date.now();
     
     try {
+      setDebugStatus('Capturing frame...');
+      
       // Capture frame silently (no sound, no animation)
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.3,           // Lower quality for faster capture
-        base64: true,
+        quality: 0.1,           // Low quality for faster capture
+        base64: true,           // Get base64 for processing
         skipProcessing: true,
         shutterSound: false,    // Disable shutter sound
       });
       
-      if (!photo || !photo.base64) return;
+      if (!photo) {
+        console.log('[Camera] No photo returned');
+        setDebugStatus('Capture failed - no photo');
+        return;
+      }
       
-      // Convert base64 to frame data
-      // Note: In a real implementation, you'd decode the base64 to pixel data
-      // For now, we'll create mock frame data for demonstration
+      const captureTime = Date.now() - startTime;
+      setLastCaptureTime(captureTime);
+      console.log(`[Camera] Frame captured in ${captureTime}ms`);
+      
+      // Create simplified frame data
+      // For demo purposes, use placeholder pixel data
+      // Real implementation would decode base64 to actual pixels
       const frameData: FrameData = {
-        data: new Uint8Array(DEVICE_CONFIG.screenWidth * DEVICE_CONFIG.screenHeight * 4),
-        width: photo.width,
-        height: photo.height,
+        data: new Uint8Array(FRAME_WIDTH * FRAME_HEIGHT * 4).fill(128), // Gray placeholder
+        width: FRAME_WIDTH,
+        height: FRAME_HEIGHT,
         timestamp: Date.now(),
       };
       
-      // Add frame to buffer (sliding window - keeps last 20 frames)
+      // Add frame to buffer
       const wasAdded = frameBufferRef.current.addFrame(frameData);
       
       if (wasAdded) {
-        setFrameCount((prev: number) => prev + 1);
-        predictionFrameCounterRef.current += 1;
+        const newCount = frameCount + 1;
+        setFrameCount(newCount);
         
         const buffer = frameBufferRef.current;
-        const isBufferReady = buffer.isReady();
+        const bufferCount = buffer.getFrameCount();
+        setDebugStatus(`Captured: ${newCount} | Buffer: ${bufferCount}/${SEQ_LEN}`);
         
-        // Wait for full buffer, then predict every Nth frame based on predictionInterval
-        const shouldPredict = isBufferReady && 
-                            (predictionFrameCounterRef.current % DEVICE_CONFIG.predictionInterval === 0);
+        console.log(`[Camera] Frame ${newCount} added to buffer (${bufferCount}/${SEQ_LEN})`);
         
-        if (shouldPredict && !isInferencingRef.current) {
-          await runInference();
+        // Run inference when buffer is ready (or can predict early with padding)
+        if (buffer.canPredictEarly() && !isInferencingRef.current) {
+          await runInferenceWithPadding();
         }
       }
-    } catch (error) {
-      // Silently ignore capture errors (camera busy, etc.)
+    } catch (error: any) {
+      console.error('[Camera] Frame capture error:', error?.message || error);
+      setDebugStatus(`Error: ${error?.message || 'capture failed'}`);
     }
   };
 
   /**
-   * Run model inference on buffered frames (sliding window)
-   * Uses the most recent 20 frames from the buffer for prediction
-   * Predictions occur every Nth frame based on predictionInterval config
+   * Run model inference with frame padding if buffer not full
    */
-  const runInference = async () => {
+  const runInferenceWithPadding = async () => {
     const buffer = frameBufferRef.current;
     
-    if (isInferencingRef.current || !buffer.isReady()) {
+    if (isInferencingRef.current) {
       return;
     }
     
     isInferencingRef.current = true;
+    setDebugStatus('Running inference...');
     
     try {
-      // Get the most recent 20 frames (sliding window)
-      const frames = buffer.getFrames();
+      // Get frames with padding (duplicates last frame to fill SEQ_LEN)
+      const frames = buffer.getFramesPadded();
       
       // Preprocess frames
       const preprocessor = preprocessorRef.current;
@@ -226,15 +267,16 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       setDirectionLabel(prediction.className);
       setConfidence(prediction.confidence);
       setMetrics(newMetrics);
-      setPredictionCount((prev: number) => prev + 1);
+      const newPredCount = predictionCount + 1;
+      setPredictionCount(newPredCount);
       
-      console.log(`[Camera] Prediction #${predictionCount + 1}: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
+      setDebugStatus(`Prediction #${newPredCount}: ${prediction.className}`);
+      console.log(`[Camera] Prediction #${newPredCount}: ${prediction.className} (${(prediction.confidence * 100).toFixed(1)}%)`);
       console.log(`[Camera] Latency: ${newMetrics.totalLatencyMs.toFixed(1)}ms`);
       
-      // Don't clear buffer - sliding window keeps frames for next prediction
-      // Buffer auto-removes oldest frame when new frame is added
-    } catch (error) {
-      console.error('[Camera] Inference error:', error);
+    } catch (error: any) {
+      console.error('[Camera] Inference error:', error?.message || error);
+      setDebugStatus(`Inference error: ${error?.message || 'unknown'}`);
     } finally {
       isInferencingRef.current = false;
     }
@@ -250,6 +292,7 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
 
   // Permission not determined yet
   if (!permission) {
+    console.log('[Camera] Permission not determined yet');
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.permissionText}>Requesting camera permission...</Text>
@@ -259,6 +302,7 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
 
   // Permission denied
   if (!permission.granted) {
+    console.log('[Camera] Permission denied');
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>
@@ -270,6 +314,8 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
       </SafeAreaView>
     );
   }
+  
+  console.log('[Camera] Rendering camera view - permission granted');
 
   return (
     <View style={styles.container}>
@@ -280,15 +326,36 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        mode="picture"
         animateShutter={false}
-        flash="off"
+        enableTorch={false}
+        onCameraReady={() => {
+          console.log('[Camera] Camera is ready!');
+          setIsCameraReady(true);
+          setDebugStatus('Camera ready');
+        }}
+        onMountError={(error) => {
+          console.error('[Camera] Mount error:', error);
+          setDebugStatus(`Camera error: ${error.message}`);
+        }}
       />
       
       {/* Overlay Container - Absolute positioned on top of camera */}
       <View style={styles.overlayContainer}>
+        {/* Debug Camera Status - Center of screen */}
+        {!isCameraReady && (
+          <View style={styles.cameraStatusOverlay}>
+            <Text style={styles.cameraStatusText}>📷 Initializing Camera...</Text>
+            <Text style={styles.cameraStatusSubtext}>Please wait</Text>
+          </View>
+        )}
+        
         {/* Performance Overlay (Top-Left) */}
         <View style={styles.performanceOverlay}>
           <Text style={styles.performanceTitle}>Performance</Text>
+          <Text style={styles.performanceText}>
+            Capture: {lastCaptureTime} ms
+          </Text>
           <Text style={styles.performanceText}>
             Inference: {metrics.inferenceTimeMs.toFixed(0)} ms
           </Text>
@@ -298,15 +365,16 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
           <Text style={styles.performanceText}>
             Total: {metrics.totalLatencyMs.toFixed(0)} ms
           </Text>
-          <Text style={styles.performanceText}>
-            FPS: {metrics.fps.toFixed(1)}
-          </Text>
           <View style={styles.performanceDivider} />
           <Text style={styles.performanceText}>
             Frames: {frameCount}
           </Text>
           <Text style={styles.performanceText}>
             Predictions: {predictionCount}
+          </Text>
+          <View style={styles.performanceDivider} />
+          <Text style={styles.debugText} numberOfLines={2}>
+            {debugStatus}
           </Text>
         </View>
 
@@ -319,13 +387,13 @@ export default function CameraScreen({ navigation }: CameraScreenProps) {
         <View style={styles.statusIndicator}>
           <View style={[
             styles.statusDot,
-            { backgroundColor: isCapturing ? '#ffffff' : '#666666' }
+            { backgroundColor: (isCameraReady && isCapturing) ? '#00ff00' : '#666666' }
           ]} />
           <Text style={styles.statusText}>
-            {isCapturing ? 'Capturing' : 'Paused'}
+            {!isCameraReady ? 'Camera initializing...' : isCapturing ? 'Capturing' : 'Paused'}
           </Text>
           {!isModelLoaded && (
-            <Text style={styles.statusText}> | Loading...</Text>
+            <Text style={styles.statusText}> | Demo Mode</Text>
           )}
         </View>
 
@@ -374,6 +442,32 @@ const styles = StyleSheet.create({
     pointerEvents: 'box-none',
   },
 
+  // Camera Status Overlay (Center)
+  cameraStatusOverlay: {
+    position: 'absolute',
+    top: '40%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 30,
+    marginHorizontal: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#444444',
+  },
+  cameraStatusText: {
+    fontSize: 18,
+    color: '#ffffff',
+    fontWeight: '400',
+    marginBottom: 8,
+  },
+  cameraStatusSubtext: {
+    fontSize: 14,
+    color: '#888888',
+  },
+
   // Performance Overlay (Top-Left)
   performanceOverlay: {
     position: 'absolute',
@@ -399,6 +493,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: 'monospace',
     lineHeight: 16,
+  },
+  debugText: {
+    fontSize: 9,
+    color: '#00ff00',
+    fontFamily: 'monospace',
+    lineHeight: 12,
+    maxWidth: 140,
   },
   performanceDivider: {
     height: 1,
