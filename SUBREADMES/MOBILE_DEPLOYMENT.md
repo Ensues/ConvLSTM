@@ -167,7 +167,7 @@ Use Netron to visualize the model architecture by opening the .onnx file in the 
 **Objective**: Convert ONNX to TensorFlow format (required for TFLite)
 
 **Implementation**:
-Use onnx2tf.convert() function to convert the model to its TensorFlow representation.
+Use onnx2tf.convert() function to convert the ONNX model to TensorFlow and TFLite models.
 
 **Note**: Some ONNX operations may not be fully supported. If conversion fails, consider direct PyTorch → TensorFlow conversion (not recommended) using libraries like pytorch2keras.
 
@@ -201,10 +201,6 @@ Source: LearnOpenCV (2022)
 https://learnopencv.com/tensorflow-lite-model-optimization-for-on-device-machine-learning/
 
 Conclusion: **Dynamic Range**
-
-Code for implementation:
-
-> converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
 **Expected Sizes**:
 
