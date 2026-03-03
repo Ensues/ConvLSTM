@@ -1,146 +1,296 @@
 # Model Conversion Guide
 
-## ⚠️ Important: TensorFlow.js Model Format Required
+## Overview
 
-The current model file (`assets/model/convlstm.tflite`) needs to be converted to TensorFlow.js format for the app to work.
+This app uses **TensorFlow Lite (TFLite)** for on-device inference via `react-native-fast-tflite`. The model must be converted from PyTorch to TFLite format.
 
-## Option 1: Convert TFLite to TFJS (Recommended)
+**Current Status**: The app has a TFLite model at `assets/model/convlstm.tflite` (Float16 quantized, 3.62 MB).
 
-### Step 1: Install TensorFlow.js Converter
-```bash
-pip install tensorflowjs
+## Conversion Pipeline: PyTorch → ONNX → TensorFlow → TFLite
+
+The conversion follows this path:
+
+```
+PyTorch (.pth) → ONNX (.onnx) → TensorFlow (SavedModel) → TFLite (.tflite)
 ```
 
-### Step 2: Convert the Model
+---
+
+## Step 1: Export PyTorch Model to ONNX
+
+### Prerequisites
 ```bash
-# Navigate to your project
-cd "c:\Users\ejans\OneDrive\Documents\Programming Projects\Thesis\ConvLSTM"
-
-# Convert TFLite to TFJS format
-tensorflowjs_converter \
-  --input_format=tf_saved_model \
-  --output_format=tfjs_graph_model \
-  --signature_name=serving_default \
-  --saved_model_tags=serve \
-  conversion/tf_model \
-  test_deployment/assets/model/
-
-# This will create:
-# - model.json (model architecture)
-# - group1-shard1of1.bin (model weights)
+pip install torch onnx
 ```
 
-### Step 3: Update Asset References
-The model will be automatically loaded from `assets/model/model.json`
+### Export Script
 
-## Option 2: Use ONNX Model (Alternative)
-
-If you have the ONNX model, you can use onnx.js:
-
-```bash
-npm install onnxjs
-```
-
-Then update `inference.ts` to use ONNX runtime instead of TensorFlow.js.
-
-## Option 3: Development Mode (Current)
-
-For testing the UI without a working model, the app currently falls back to displaying random predictions when the model fails to load. This allows you to:
-- Test the camera capture
-- Verify the UI layout
-- Check performance metrics display
-- Test navigation flow
-
-## Converting Your PyTorch Model
-
-If you need to convert from PyTorch:
-
-### Step 1: Export PyTorch to ONNX
 ```python
 import torch
 import onnx
+from models.conv_lstm_classifier import ConvLSTMClassifier
 
-# Load your PyTorch model
-model = ConvLSTMClassifier(...)
-model.load_state_dict(torch.load('best_convlstm.pth'))
+# Load trained PyTorch model
+model = ConvLSTMClassifier(
+    input_dim=6,
+    hidden_dim=[64, 32],
+    kernel_size=(3, 3),
+    num_layers=2,
+    seq_len=20,
+    height=128,
+    width=128,
+    num_classes=3,
+    dropout_rate=0.5
+)
+model.load_state_dict(torch.load('notebooks/best_convlstm.pth'))
 model.eval()
 
-# Create dummy input
+# Create dummy input: [batch, seq_len, channels, height, width]
 dummy_input = torch.randn(1, 20, 6, 128, 128)
 
 # Export to ONNX
 torch.onnx.export(
     model,
     dummy_input,
-    "convlstm.onnx",
+    "conversion/convlstm.onnx",
     export_params=True,
-    opset_version=11,
+    opset_version=13,  # Use opset 13 for better compatibility
     input_names=['input'],
-    output_names=['output']
+    output_names=['output'],
+    dynamic_axes={
+        'input': {0: 'batch_size'},
+        'output': {0: 'batch_size'}
+    }
 )
+
+print("✅ ONNX export successful!")
 ```
 
-### Step 2: Convert ONNX to TensorFlow
+### Verify ONNX Model
+
+```python
+import onnx
+
+# Load and check the model
+onnx_model = onnx.load("conversion/convlstm.onnx")
+onnx.checker.check_model(onnx_model)
+print("✅ ONNX model is valid")
+
+# Visualize with Netron (optional)
+# pip install netron
+# netron conversion/convlstm.onnx
+```
+
+---
+
+## Step 2: Convert ONNX to TensorFlow SavedModel
+
+### Prerequisites
 ```bash
-pip install onnx-tf
-
-# Convert ONNX to TF SavedModel
-onnx-tf convert -i convlstm.onnx -o tf_model/
+pip install onnx-tf tensorflow
 ```
 
-### Step 3: Convert TF SavedModel to TFJS
+### Conversion Script
+
 ```bash
-tensorflowjs_converter \
-  --input_format=tf_saved_model \
-  --output_format=tfjs_graph_model \
-  tf_model/ \
-  test_deployment/assets/model/
+# Convert ONNX to TensorFlow SavedModel
+onnx-tf convert -i conversion/convlstm.onnx -o conversion/tf_model/
+
+# Expected output:
+# conversion/tf_model/
+#   ├── saved_model.pb
+#   ├── fingerprint.pb
+#   └── variables/
 ```
 
-## Verifying the Conversion
+**Note**: Some PyTorch operations may not have direct TensorFlow equivalents. Check the conversion logs for warnings.
 
-After conversion, you should see:
+---
+
+## Step 3: Convert TensorFlow SavedModel to TFLite
+
+### Option A: Float32 TFLite (Baseline)
+
+```python
+import tensorflow as tf
+
+# Load SavedModel
+converter = tf.lite.TFLiteConverter.from_saved_model('conversion/tf_model/')
+
+# Convert to TFLite Float32
+tflite_model = converter.convert()
+
+# Save model
+with open('conversion/convlstm_float32.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+print("✅ Float32 TFLite model created")
+print(f"   Size: {len(tflite_model) / (1024*1024):.2f} MB")
 ```
-test_deployment/
-└── assets/
-    └── model/
-        ├── model.json          # Model architecture
-        └── group1-shard1of1.bin # Model weights
+
+### Option B: Float16 TFLite (Recommended - Smaller Size)
+
+```python
+import tensorflow as tf
+
+# Load SavedModel
+converter = tf.lite.TFLiteConverter.from_saved_model('conversion/tf_model/')
+
+# Enable Float16 quantization
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.target_spec.supported_types = [tf.float16]
+
+# Convert to TFLite Float16
+tflite_model = converter.convert()
+
+# Save model
+with open('conversion/convlstm_float16.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+print("✅ Float16 TFLite model created")
+print(f"   Size: {len(tflite_model) / (1024*1024):.2f} MB")
+print(f"   Size reduction: ~50% compared to Float32")
 ```
 
-## File Size Expectations
+### Option C: INT8 Quantization (Advanced - Fastest Inference)
 
-- **TFLite model**: ~1.5 MB
-- **TFJS model.json**: ~100 KB
-- **TFJS .bin files**: ~1.5 MB total
+```python
+import tensorflow as tf
+import numpy as np
 
-## Next Steps
+def representative_dataset():
+    """Generate representative data for calibration"""
+    for _ in range(100):
+        # Generate random data matching input shape
+        data = np.random.rand(1, 20, 6, 128, 128).astype(np.float32)
+        yield [data]
 
-1. Convert your model using one of the methods above
-2. Place the converted files in `test_deployment/assets/model/`
-3. Restart the Expo development server
-4. The app will automatically load the real model
+# Load SavedModel
+converter = tf.lite.TFLiteConverter.from_saved_model('conversion/tf_model/')
+
+# Enable INT8 quantization
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.representative_dataset = representative_dataset
+converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+converter.inference_input_type = tf.uint8
+converter.inference_output_type = tf.uint8
+
+# Convert
+tflite_model = converter.convert()
+
+# Save model
+with open('conversion/convlstm_int8.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+print("✅ INT8 TFLite model created")
+print(f"   Size: {len(tflite_model) / (1024*1024):.2f} MB")
+print(f"   Expected: 2-4x faster inference")
+```
+
+---
+
+## Step 4: Test TFLite Model
+
+```python
+import tensorflow as tf
+import numpy as np
+
+# Load TFLite model
+interpreter = tf.lite.Interpreter(model_path='conversion/convlstm_float16.tflite')
+interpreter.allocate_tensors()
+
+# Get input/output details
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+print("Input shape:", input_details[0]['shape'])
+print("Output shape:", output_details[0]['shape'])
+
+# Test with dummy data
+test_input = np.random.rand(1, 20, 6, 128, 128).astype(np.float32)
+interpreter.set_tensor(input_details[0]['index'], test_input)
+
+# Run inference
+interpreter.invoke()
+
+# Get output
+output = interpreter.get_tensor(output_details[0]['index'])
+print("Output:", output)
+print("Predicted class:", np.argmax(output))
+```
+
+---
+
+## Step 5: Deploy to Mobile App
+
+1. **Copy the TFLite model to the app:**
+   ```bash
+   cp conversion/convlstm_float16.tflite test_deployment/assets/model/convlstm.tflite
+   ```
+
+2. **Build development build** (TFLite requires native modules):
+   ```bash
+   cd test_deployment
+   npx expo prebuild
+   npx expo run:android
+   ```
+
+3. **Test on device:**
+   - Launch app
+   - Tap "Start" button
+   - Grant camera permission
+   - Check if predictions show "[REAL]" instead of "[DEMO]"
+
+---
+
+## File Size Comparison
+
+| Model Type | Size | Accuracy | Inference Time |
+|------------|------|----------|----------------|
+| PyTorch .pth | 7.14 MB | Baseline | N/A (desktop only) |
+| ONNX | ~7 MB | ~Baseline | ~baseline |
+| TFLite Float32 | ~7 MB | ~Baseline | 200-500ms |
+| TFLite Float16 | ~3.6 MB | 99%+ of baseline | 100-300ms |
+| TFLite INT8 | ~2 MB | 95%+ of baseline | 50-150ms |
+
+**Recommendation**: Use Float16 for best balance of size, accuracy, and speed.
+
+---
 
 ## Troubleshooting
 
-### Error: "Cannot find module model.json"
-- Make sure model.json is in `assets/model/` directory
-- Check that the file is included in `app.json` under `assetBundlePatterns`
+### Error: "ONNX conversion failed"
+- Check PyTorch model architecture for unsupported operations
+- Try different ONNX opset versions (11, 12, 13, 14)
+- Use `torch.onnx.export` with `verbose=True` for debugging
 
-### Error: "Model prediction failed"
-- Verify input shape matches: `[1, 20, 6, 128, 128]`
-- Check that the model expects float32 input
-- Ensure normalization is correct (0-1 range for pixels)
+### Error: "TensorFlow conversion failed"
+- Some ONNX ops may not be supported by onnx-tf
+- Check conversion logs for specific operation errors
+- Consider using alternative operations in PyTorch model
 
-### Model loads but predictions are wrong
-- Verify preprocessing matches training pipeline
-- Check channel order (RGB vs BGR)
-- Verify normalization values match training
+### Error: "TFLite model loads but crashes"
+- Verify input shape matches exactly: `[1, 20, 6, 128, 128]`
+- Check data type (Float32 vs Float16 vs INT8)
+- Ensure preprocessing matches training pipeline
+
+### Model predictions are incorrect
+- Verify normalization: pixels should be in [0, 1] range
+- Check channel order: RGB (not BGR)
+- Ensure intent channels are zeros if not using intent
+- Test model in Python first before deploying
+
+### App shows "Demo Mode"
+- TFLite requires development build (not Expo Go)
+- Run: `npx expo prebuild && npx expo run:android`
+- Check that `convlstm.tflite` exists in `assets/model/`
+- Check console logs for TFLite loading errors
+
+---
 
 ## Need Help?
 
-If you encounter issues:
-1. Check the console logs for detailed error messages
-2. Verify the model conversion completed successfully
-3. Test the model in Python first before converting
-4. Ensure TensorFlow.js version is compatible with your model
+1. Check the console logs in Metro bundler and device logs
+2. Verify each conversion step produces valid output
+3. Test model in Python/TensorFlow before deploying to mobile
+4. Compare predictions between PyTorch, ONNX, TensorFlow, and TFLite
